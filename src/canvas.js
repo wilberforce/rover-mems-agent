@@ -9,6 +9,8 @@ var lineColours = ['aqua', 'yellow', 'lime', 'white'];
 var canvasLabelX;
 var canvasLabelY;
 
+let outputHistory = [];
+
 window.addEventListener('resize', windowResized);
 
 // wait for resize to finish

@@ -142,7 +142,7 @@ func myrouter(c *gin.Context) {
 		mimeType = "text/html"
 		break
 	case "js":
-		mimeType = "script/javascript"
+		mimeType = "application/javascript"
 		break
 	case "css":
 		mimeType = "text/css"

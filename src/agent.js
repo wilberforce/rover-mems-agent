@@ -1,3 +1,8 @@
+import { showDivs } from './helpers';
+import { agentAddress } from './globals'; 
+import { debug, spin, setEcuConnected } from './script';
+import { clearFaults } from './output';
+
 function ecuTypeSelectChanged() {
   document.getElementById("connectionSection").style.display = "none";
   showDivs();
@@ -64,10 +69,10 @@ function parseAgentResponse(data) {
 
   if (data.faults !== undefined) {
     if (data.faults != agentLastSeenFaults) {
-      output = {};
+      let output = {};
       for (var i=0; i < data.faults.length; i++) {
-        faultText = data.faults[i];
-        key = faultText.replace(" ", "_");
+        let faultText = data.faults[i];
+        let key = faultText.replace(" ", "_");
         output["fault_"+key] = {"name": faultText, "data": true};
       }
       clearFaults();
@@ -87,7 +92,7 @@ function parseAgentResponse(data) {
   }
 
   if (data.ecuData !== undefined) {
-    output = {};
+    let output = {};
     // console.log(data.ecuData);
     Object.keys(data.ecuData).forEach(function(key) {
       // console.log(key, data.ecuData[key]);
@@ -169,3 +174,5 @@ function parseAgentResponse(data) {
   }
 
 }
+
+export { ecuTypeSelectChanged, parseAgentResponse, runUserAction, ecuVersionDiv };

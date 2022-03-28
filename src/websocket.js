@@ -1,7 +1,12 @@
+import { commandsError } from './script';
+import { parseAgentResponse} from './agent';
+import { agentAddress } from './globals';
 var refreshSpeedSelect = document.getElementById("refreshSpeed");
 
 function newwebsocket() {
-  url = 'ws://localhost:8080/ws';
+  // let url = 'ws://localhost:8080/ws';
+  let url = `ws://${agentAddress}/ws`;
+
   window.c = new WebSocket(url);
 
   c.onmessage = function(msg){
@@ -9,7 +14,7 @@ function newwebsocket() {
     // console.log(msg)
     window.counter++;
     try {
-      data = JSON.parse(msg.data);
+      let data = JSON.parse(msg.data);
       // console.log(data);
       // wsParse(data);
       parseAgentResponse(data);

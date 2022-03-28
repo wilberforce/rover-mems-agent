@@ -10,3 +10,15 @@ Please use the Github options to report an Issue/Pull Request/Discussion
 
 This is written in Golang (Go) and runs as an API, intended to work with the main web app on https://rovermems.com/
 I will move the webapp inside this repo soon so it can run standalone/without internet access
+
+### build the web-static folder file
+```
+npm install
+npm run build
+```
+
+### hot-reloading development
+```
+npm install
+npm run dev
+```

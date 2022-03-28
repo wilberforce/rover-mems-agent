@@ -1,22 +1,25 @@
 var maxHistoryLength = 10000;
 
-numCollectedDatapointsSpan = document.getElementById("numCollectedDatapoints");
+let numCollectedDatapointsSpan = document.getElementById("numCollectedDatapoints");
 
-allOutputKeys = {};
+let allOutputKeys = {};
 
-min_values = {
+const min_values = {
   'rpm': -100,
   'coolant': -30,
   'lambda': 0,
   'map': 0
 };
 
-max_values = {
+const max_values = {
   'rpm': 6500,
   'coolant': 120,
   'lambda': 1,
   'map': 110
 };
+
+
+let outputHistory = [];
 
 function clearFaults() {
   var faultsDiv = document.getElementById("faults");
@@ -143,7 +146,7 @@ function downloadData() {
   rows.push(header);
 
   // make a copy so it doesn't keep changing
-  data = outputHistory.slice();
+  let data = outputHistory.slice();
 
   for (var i=0; i<data.length; i++) {
     rowInput = data[i];
@@ -196,3 +199,5 @@ function downloadEeprom() {
   a.click();
   window.URL.revokeObjectURL(url);
 }
+
+export { numCollectedDatapointsSpan, clearFaults, downloadData, downloadEeprom };

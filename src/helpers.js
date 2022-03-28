@@ -1,3 +1,6 @@
+import { mems19OnlyDivs, mems1xOnlyDivs, mems2jOnlyDivs, mems3OnlyDivs, rc5OnlyDivs, agentAddress } from "./globals.js";
+import {  ecuVersionDiv } from "./agent.js";
+
 function xor_all_bytes(bytes) {
   current = 0
   for (var i=0; i<bytes.length; i++) {
@@ -97,3 +100,5 @@ function showDivs() {
 //     }
 //   }
 // }
+
+export { showDivs, xor_all_bytes, sum_checksum_all_bytes, sleep };

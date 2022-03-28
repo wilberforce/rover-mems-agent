@@ -8,12 +8,12 @@ const ecuIdElement = document.getElementById('ecuId');
 const carInfoElement = document.getElementById('carInfo');
 const debugWrapperElement = document.getElementById('debugWrapper');
 
-outputHistory = [];
+// outputHistory = [];
 
-ecuConnected = false;
-ecuId = "";
+let ecuConnected = false;
+let ecuId = "";
 
-knownEcus = {
+const knownEcus = {
   "9A,00,02,02": "MNE?????? Rover Mini SPI",
   "99,00,06,03": "MNE101351 Rover Mini SPI JDM, Air con, MEMS 1.6, 2 plugs, MPI flywheel/coil pack",
   "99,00,03,03": "MNE101170 Rover Mini SPI JDM, Air con, MEMS 1.6",
@@ -24,9 +24,9 @@ knownEcus = {
   "10,88,88,36": "MNE10039 Rover Metro? 1x 36 pin plug"
 };
 
-initAttempt = 0;
+let initAttempt = 0;
 
-dataBuffer = new Array();
+let dataBuffer = new Array();
 
 var commandsAlertTimer;
 function commandsAlert(message, alert_type, timeout) {
@@ -56,7 +56,7 @@ function updateEcuId() {
 }
 
 function spin() {
-  output = "";
+  let output = "";
   switch (spinnerElement.textContent) {
     case "-": output = "\\"; break;
     case "\\": output = "|"; break;
@@ -193,3 +193,5 @@ async function timedOut() {
 }
 
 setEcuConnected(false);
+
+export { commandsAlert, commandsError, debug, spin, setEcuConnected };
