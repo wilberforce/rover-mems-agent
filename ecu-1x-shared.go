@@ -1,10 +1,11 @@
 package main
 
 import (
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
-	"errors"
-  "encoding/hex"
+
 	"github.com/distributed/sers"
 )
 
@@ -27,6 +28,17 @@ var (
 	ecu1xIncreaseIdleSpeed = byte(0x91)
 	ecu1xDecreaseIdleSpeed = byte(0x92)
 
+  // New commands
+  ecu1xIncreaseFuelTrim1 = byte(0x79)
+  ecu1xDecreaseFuelTrim1 = byte(0x7A)
+  ecu1xIncreaseFuelTrim2 = byte(0x7B)
+  ecu1xDecreaseFuelTrim2 = byte(0x7C)
+  ecu1xIncreaseIgnitionAdvanceOffset = byte(0x93)
+  ecu1xDecreaseIgnitionAdvanceOffset = byte(0x94)
+  ecu1xIncreaseIdleSpeedDecay = byte(0x89)
+	ecu1xDecreaseIdleSpeedDecay = byte(0x8A)
+
+
 	ecu1xUserCommands = map[string] byte{
 		"clearfaults": ecu1xRequestClearFaults,
 		"startTestRpmGauge": ecu1xStartTestRpmGauge,
@@ -42,6 +54,15 @@ var (
 		"stopTestPurgeValve": ecu1xStopTestPurgeValve,
 		"increaseIdleSpeed": ecu1xIncreaseIdleSpeed,
 		"decreaseIdleSpeed": ecu1xDecreaseIdleSpeed,
+
+    "ecu1xIncreaseFuelTrim1": ecu1xIncreaseFuelTrim1,
+    "ecu1xDecreaseFuelTrim1": ecu1xDecreaseFuelTrim1,
+    "ecu1xIncreaseFuelTrim2": ecu1xIncreaseFuelTrim2,
+    "ecu1xDecreaseFuelTrim2": ecu1xDecreaseFuelTrim2,
+    "ecu1xIncreaseIgnitionAdvanceOffset": ecu1xIncreaseIgnitionAdvanceOffset,
+    "ecu1xDecreaseIgnitionAdvanceOffset": ecu1xDecreaseIgnitionAdvanceOffset,
+    "ecu1xIncreaseIdleSpeedDecay": ecu1xIncreaseIdleSpeedDecay,
+    "ecu1xDecreaseIdleSpeedDecay": ecu1xDecreaseIdleSpeedDecay,
 	}
 )
 

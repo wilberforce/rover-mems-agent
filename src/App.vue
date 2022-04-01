@@ -1,4 +1,5 @@
 <template>
+<!--
   <br />
   ECU/Module type:
   <select class="select">
@@ -6,6 +7,7 @@
     <option v-for="(ecuType, index) in ecuTypes" v-bind:key="index">{{ecuType}}</option>
   </select>
   <hr />
+  -->
 </template>
 
 <script lang="ts">
