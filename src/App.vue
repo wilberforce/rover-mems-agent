@@ -310,7 +310,7 @@ export default {
     download() {
       let log = this.log;
 
-      log = {
+      let log2 = {
         Name: "testdata/nofaults.fcr",
         Count: 338,
         Date: "0000-01-01T12:35:55.186Z",
@@ -2724,7 +2724,7 @@ export default {
               trace("read all the data");
               break;
             }
-            let data = this.hex(Array.from(value).shift());
+            let data = this.hex(Array.from(value));
 
             if (value[0] === 0x00) {
               this.debug("got 0");
