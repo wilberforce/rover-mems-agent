@@ -20,10 +20,12 @@
       Download
     </button>
     <br />
-        <button
+    <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x80,0x7d])"
-    >All Data</button>
+      @click="sendToEcu([0x7d, 0x80])"
+    >
+      All Data
+    </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0x80])"
@@ -101,22 +103,26 @@
       Ign Trim -
     </button>
 
-    <br />
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xc4])"
-    >
-      Diagmode 4?
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xf7])"
-    >
-      Diagmode 4 - read calibration
-    </button>
   </div>
 
   <hr />
+
+  <table class="table">
+    <tr>
+      <th>Name</th>
+      <th>Value</th>
+    </tr>
+    <tr><td>Time</td><td>{{Dataframe.Time}}</td></tr>
+    <tr><td>Dataframe7d</td><td>{{Dataframe.Dataframe7d}}</td></tr>
+    <tr><td>Dataframe80</td><td>{{Dataframe.Dataframe80}}</td></tr>
+    <tr><td>RPM</td><td>{{Dataframe.EngineRPM}}</td></tr>
+    <tr><td>AFR</td><td>{{Dataframe.AirFuelRatio}}</td></tr>
+    <tr><td>Lambda</td><td>{{Dataframe.LambdaVoltage}}</td></tr>
+    <tr><td>Short Term Fuel Trim</td><td>{{Dataframe.ShortTermFuelTrim}}</td></tr>
+    <tr><td>ECUID</td><td>{{ECUID}}</td></tr>
+    <tr><td>ECUSerial</td><td>{{ECUSerial}}</td></tr>
+    
+  </table>
 
   <pre id="console"></pre>
 </template>
@@ -131,7 +137,7 @@ export default {
       ECUSerial: "",
       log: {
         Name: "run.fcr",
-        Count: 338,
+        Count: 2,
         Date: "0000-01-01T12:35:55.186Z",
         Summary: "Test run",
         ECUID: "",
@@ -251,109 +257,122 @@ export default {
         },
         //Dataframe80:          "801c000085ff4fff638e23001001000000208b60039d003808c1000000",
         //Dataframe7d:          "7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
-        
-   "Dataframe7d": "7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
-   "Dataframe80": "801c089f74ff51ff3983320800010000203787870379055c05f8100000"
-  },
+
+        Dataframe7d:
+          //"7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
+            "7d0000000000000000000000000000000000000000000000000000000000000000",
+        Dataframe80:
+          //"801c089f74ff51ff3983320800010000203787870379055c05f8100000",
+          "8000000000000000000000000000000000000000000000000000000000",
+      },
     };
   },
-  mounted: function() {
-    console.log("mounted");
+  mounted: function () {
+    /*
     this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
-    this.parse7d(this.hexToBytes(this.Dataframe.Dataframe7d));
+    this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
+    this.parseD1("D141424E4D5030303399000303");
+    this.parseD1(
+      "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
+    );
+    */
   },
   methods: {
-    parse7d( data: ArrayBuffer ) {
+    parseD1(data) {
+      let bytes = this.hexToBytes(data);
+      var v = new DataView(bytes);
+      this.ECUSerial = v.getUint32(9).toString();
+      this.ECUID = String.fromCharCode.apply(
+        null,
+        new Uint8Array(bytes.slice(1, 9))
+      );
+    },
+    parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
-      let len=v.getUint8(1);
-      if ( len !== 32) {
-        this.debug(" expected len 32 for 0x7d")
-      } else 
-      {
+      let len = v.getUint8(1);
+      if (len !== 32) {
+        this.debug(" expected len 32 for 0x7d");
+      } else {
         let v7d = {
-          IgnitionSwitch: true,
-        ThrottleAngle: 0,
-        Uk7d03: v.getUint8(3),
-        AirFuelRatio: 0,
-        DTC2: 0,
-        LambdaVoltage: 0,
-        LambdaFrequency: 0,
-        LambdaDutycycle: 0,
-        LambdaStatus: 0,
-        ClosedLoop: false,
-        LongTermFuelTrim: 0,
-        ShortTermFuelTrim: 0,
-        FuelTrimCorrection: 0,
-        CarbonCanisterPurgeValve: 0,
-        DTC3: v.getUint8(16),
-        IdleBasePosition: 0,
-        Uk7d10: v.getUint8(16),
-        DTC4: 0,
-        IgnitionAdvanceOffset7d: 0,
-        IdleSpeedOffset: 0,
-        Uk7d14: v.getUint8(20),
-        Uk7d15: v.getUint8(21),
-        DTC5: v.getUint8(22),
-        Uk7d17: v.getUint8(23),
-        Uk7d18: v.getUint8(24),
-        Uk7d19: v.getUint8(25),
-        Uk7d1a: v.getUint8(26),
-        Uk7d1b: v.getUint8(27),
-        Uk7d1c: v.getUint8(28),
-        Uk7d1d: v.getUint8(29),
-        Uk7d1e: v.getUint8(30),
-        JackCount: v.getUint8(31)
-        }
+          IgnitionSwitch: v.getUint8(0x01) > 0,
+          ThrottleAngle: (v.getUint8(0x02) * 6.0) / 10.0,
+          Uk7d03: v.getUint8(0x03),
+          AirFuelRatio: v.getUint8(0x04) / 10.0,
+          DTC2: v.getUint8(0x05),
+          LambdaVoltage: v.getUint8(0x06) * 5,
+          LambdaFrequency: v.getUint8(0x07),
+          LambdaDutycycle: v.getUint8(0x08),
+          LambdaStatus: v.getUint8(0x09),
+          ClosedLoop: v.getUint8(0x0a),
+          LongTermFuelTrim: v.getInt8(0x0b),
+          ShortTermFuelTrim: v.getInt8(0x0c),
+          //FuelTrimCorrection: v.getInt8(0x),
+          CarbonCanisterPurgeValve: v.getUint8(0x0d),
+          DTC3: v.getUint8(0x0e),
+          IdleBasePosition: v.getUint8(0x0f),
+          Uk7d10: v.getUint8(0x10),
+          DTC4: v.getUint8(0x11),
+          IgnitionAdvanceOffset7d: v.getUint8(0x12) - 48,
+          IdleSpeedOffset: v.getUint8(0x13),
+          Uk7d14: v.getUint8(0x14),
+          Uk7d15: v.getUint8(0x15),
+          DTC5: v.getUint8(0x16),
+          Uk7d17: v.getUint8(0x17),
+          Uk7d18: v.getUint8(0x18),
+          Uk7d19: v.getUint8(0x19),
+          Uk7d1a: v.getUint8(0x1a),
+          Uk7d1b: v.getUint8(0x1b),
+          Uk7d1c: v.getUint8(0x1c),
+          Uk7d1d: v.getUint8(0x1d),
+          Uk7d1e: v.getUint8(0x1e),
+          JackCount: v.getUint8(0x1f),
+        };
         console.log(v7d);
       }
     },
-    parse80( data: ArrayBuffer ) {
+    parse80(data: ArrayBuffer) {
       var v = new DataView(data);
-      let len=v.getUint8(1);
-      if ( len !== 28) {
-        this.debug(" expected len 28 for 0x80")
-      } else 
-      {
-        
+      let len = v.getUint8(1);
+      if (len !== 28) {
+        this.debug(" expected len 28 for 0x80");
+      } else {
         let v80 = {
-          EngineRPM: v.getInt16(2),
-        CoolantTemp: v.getUint8(3) - 55.0,
-        AmbientTemp: v.getUint8(4) -55.0,
-        IntakeAirTemp: v.getUint8(5) - 55.0,
-        FuelTemp: v.getUint8(6) - 55.0,
-        ManifoldAbsolutePressure: v.getUint8(7),
-        BatteryVoltage: v.getUint8(8) /10.0,
-        ThrottlePotSensor: v.getUint8(9) / 200,
-        ThrottlePosition: 0,
-        IdleSwitch: false,
-        AirconSwitch: false,
-        ParkNeutralSwitch: v.getUint8(12),
-        DTC0: v.getUint8(13),
-        DTC1: v.getUint8(14),
-        IdleSetPoint: v.getUint8(15)*6.1,
-        IdleHot: v.getUint8(16),
-        Uk8011: v.getUint8(17),
-        IACPosition: v.getUint8(18),//?
-//19?
-        IdleSpeedDeviation: v.getInt16(20),
-        IgnitionAdvanceOffset80: v.getInt8(22),
-        IgnitionAdvance: v.getInt8(24)/2.0-24,
-        CoilTime: v.getInt16(24) * 2,
-        CrankshaftPositionSensor: v.getUint8(25), // 25?????
-        Uk801a: v.getInt16(26),
-        Uk801b: v.getInt16(27)
-        }
+          EngineRPM: v.getInt16(0x02),
+          CoolantTemp: v.getUint8(0x03) - 55.0,
+          AmbientTemp: v.getUint8(0x04) - 55.0,
+          IntakeAirTemp: v.getUint8(0x05) - 55.0,
+          FuelTemp: v.getUint8(0x06) - 55.0,
+          ManifoldAbsolutePressure: v.getUint8(0x07),
+          BatteryVoltage: v.getUint8(0x08) / 10.0,
+          ThrottlePotSensor: v.getUint8(0x09) * 0.02,
+          ThrottlePosition: v.getUint8(0x09) * 0.02, // ?
+          IdleSwitch: v.getUint8(0x0a),
+          AirconSwitch: v.getUint8(0x0b), // ???
+          ParkNeutralSwitch: v.getUint8(0x0c),
+          DTC0: v.getUint8(0x0d),
+          DTC1: v.getUint8(0x0e),
+          IdleSetPoint: v.getUint8(0x0f) * 6.1,
+          IdleHot: v.getUint8(0x10),
+          Uk8011: v.getUint8(0x11),
+          IACPosition: v.getUint8(0x12),
+          IdleSpeedDeviation: v.getInt16(0x13),
+          IgnitionAdvanceOffset80: v.getInt8(0x15),
+          IgnitionAdvance: v.getInt8(0x16) / 2.0 - 24.0,
+          CoilTime: v.getUint16(0x17) * 0.0002,
+          CrankshaftPositionSensor: v.getUint8(0x19),
+          Uk801a: v.getUint8(0x1a),
+          Uk801b: v.getUint8(0x1b),
+        };
         console.log(v80);
-
       }
     },
     hexToBytes(hex: string) {
-    let bytes=new ArrayBuffer(hex.length/2)
-    var view = new DataView(bytes);
-    for (let c = 0; c < hex.length; c += 2)
-        view.setUint8(c/2,parseInt(hex.substr(c, 2), 16));
-    return bytes;
-},
+      let bytes = new ArrayBuffer(hex.length / 2);
+      var view = new DataView(bytes);
+      for (let c = 0; c < hex.length; c += 2)
+        view.setUint8(c / 2, parseInt(hex.substr(c, 2), 16));
+      return bytes;
+    },
     async sleep(ms) {
       await new Promise((resolve) => setTimeout(resolve, ms));
     },
@@ -419,11 +438,12 @@ export default {
       a.href = url;
       a.download = log.Name;
       a.click();
+      log.MemsData=[];
     },
     async openSerialPort() {
       this.port = await navigator.serial.requestPort();
       console.log(this.port);
-      
+
       await this.port.open({
         baudRate: 9600,
         databits: 8,
@@ -432,7 +452,9 @@ export default {
         flowControl: "none",
       });
       console.log(this.port);
-      
+
+      sendToEcu([0xd1]);
+
       while (this.port.readable) {
         const reader = this.port.readable.getReader();
         this.debug("reading...");
@@ -441,54 +463,39 @@ export default {
             const { value, done } = await reader.read();
 
             if (done) {
-              // |reader| has been canceled.
               trace("read all the data");
               break;
             }
             let data = this.hex(Array.from(value)).substring(2);
+            this.debug(data);
 
-            if (value[0] === 0x00) {
-              this.debug("got 0");
-              //reader.releaseLock();
-              //break;
-            }
-            //Dataframe7d:               "7d201010ff92401cffff0100796400ff6fffff35887aa1ff134015801a0029c02a",
-            //Dataframe80:              "801c00006fff4fff64781b00000100002037877b055f05380ca5000000",
-            switch( value[0]) {
+            switch (value[0]) {
               case 0x80:
                 this.debug("got 80");
-                this.Dataframe.Dataframe80=data;
-                let now = new Date();
-                new Date().getMilliseconds();
-                this.Dataframe.Time=`${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
-                break;
-              case 0x7d:
-                this.debug("got 0x7d");
-                this.Dataframe.Dataframe7d=data;
+                this.Dataframe.Dataframe80 = data;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
-                  Dataframe7d: this.Dataframe.Dataframe7d
-                })
+                  Dataframe7d: this.Dataframe.Dataframe7d,
+                });
+                this.parse80(this.hexToBytes(data));
+                this.sendToEcu([0x7d]); // trigger next frame
                 break;
+              case 0x7d:
+                this.debug("got 0x7d");
+                this.Dataframe.Dataframe7d = data;
+                let now = new Date();
+                new Date().getMilliseconds();
+                this.Dataframe.Time = `${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
+                this.parse7D(this.hexToBytes(data));
+                break;
+              case 0xd1:
+                this.parseD1(this.hexToBytes(data));
+                break;
+              default: {
+                this.debug("got " + value[0]);
+              }
             }
-            /*
-            << 0d 0d 00
->> 0d
-<< 1d 1d 00
->> 1d
-<< 30 35 c7 00 05 cb
-<< d1 d1 4b 4c 48 33 56 30 30 35 c7 00 05 cb 4b 4c 48 33 56 30 30 35 c7 00 05 cb 4b 4c 48 33 56 30
->> d1
-<< 80 80 1c 00 00 4d 9a 50 ff 65 75 22 00 80 01 10 00 18 1c 87 7c 05 78 02 30 0d 16 00 00 00
->> 80
-got 0
-<< 00 01 00
-<< 7d 21 40 0a ff 91 00 57 ff ff 01 00 70 64 00 00 70 ff 00 2e 86 7a 88 00 22 00 22 00 22 00 22
-<< 7d
->> 7d
-<< 80 80 1c 00 00 4d 9a 50 ff 65 75 22 00 80 01 10 00 18 1c 87 7c 05 78 02 30 0d 16 00 00 00
->> 80 */
           }
         } catch (error) {
           // Handle |error|...
