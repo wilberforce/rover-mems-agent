@@ -279,8 +279,10 @@ export default {
   },
   methods: {
     parseD1(data) {
+      // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630
       let bytes = this.hexToBytes(data);
       var v = new DataView(bytes);
+      debugger;
       this.ECUSerial = v.getUint32(9).toString();
       this.ECUID = String.fromCharCode.apply(
         null,
@@ -290,8 +292,8 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len !== 32) {
-        this.debug(" expected len 32 for 0x7d");
+      if (len < 32) { // len is 33
+        this.debug(`expected len 32 for 0x7d got ${len}`);
       } else {
         let v7d = {
           IgnitionSwitch: v.getUint8(0x01) > 0,
@@ -324,10 +326,11 @@ export default {
           Uk7d1b: v.getUint8(0x1b),
           Uk7d1c: v.getUint8(0x1c),
           Uk7d1d: v.getUint8(0x1d),
-          Uk7d1e: v.getUint8(0x1e),
-          JackCount: v.getUint8(0x1f),
+          //Uk7d1e: v.getUint8(0x1e),
+          //JackCount: v.getUint8(0x1f),
         };
         console.log(v7d);
+        Object.assign(this.Dataframe,v7d);
       }
     },
     parse80(data: ArrayBuffer) {
@@ -364,6 +367,7 @@ export default {
           Uk801b: v.getUint8(0x1b),
         };
         console.log(v80);
+        Object.assign(this.Dataframe,v80);
       }
     },
     hexToBytes(hex: string) {
@@ -403,20 +407,20 @@ export default {
 
       this.debug("continuing with normal init");
       //start=2;
-      //sendToEcu([0x7c,0xCA,0x75,0xd0,0x80]);
+      //this.sendToEcu([0x7c,0xCA,0x75,0xd0,0x80]);
       let reply = 0x83;
       let send = reply ^ 0xff;
 
       this.debug("would send " + this.hex([send]));
     },
     async sendToEcu(bytes) {
-      this.debug(">> " + this.hex(bytes));
+      this.debug(">> " + this.hex(bytes),' ');
       let writer = this.port.writable.getWriter();
       writer.write(Uint8Array.from(bytes));
       writer.releaseLock();
     },
-    hex(bytes) {
-      return bytes.map((x) => x.toString(16).padStart(2, "0")).join(" ");
+    hex(bytes,delim='') {
+      return bytes.map((x) => x.toString(16).padStart(2, "0")).join(delim);
     },
     debug(msg) {
       console.log(msg);
@@ -453,7 +457,7 @@ export default {
       });
       console.log(this.port);
 
-      sendToEcu([0xd1]);
+      this.sendToEcu([0xd1]);
 
       while (this.port.readable) {
         const reader = this.port.readable.getReader();
@@ -488,9 +492,10 @@ export default {
                 new Date().getMilliseconds();
                 this.Dataframe.Time = `${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
                 this.parse7D(this.hexToBytes(data));
+                this.sendToEcu([0x80]); // trigger next frame
                 break;
               case 0xd1:
-                this.parseD1(this.hexToBytes(data));
+                this.parseD1(data);
                 break;
               default: {
                 this.debug("got " + value[0]);
@@ -499,7 +504,7 @@ export default {
           }
         } catch (error) {
           // Handle |error|...
-          this.debug("error");
+          this.debug(`error: ${error.message}`);
           console.log(error);
         } finally {
           reader.releaseLock();
