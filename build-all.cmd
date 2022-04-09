@@ -1,0 +1,1 @@
+ npm run build && build_packed.cmd && copy /y rover-mems_386.exe d:\

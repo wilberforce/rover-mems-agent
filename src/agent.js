@@ -1,7 +1,7 @@
 import { showDivs } from './helpers';
 import { agentAddress } from './globals'; 
 import { debug, spin, setEcuConnected } from './script';
-import { clearFaults } from './output';
+import { clearFaults, outputData } from './output';
 
 function ecuTypeSelectChanged() {
   document.getElementById("connectionSection").style.display = "none";
@@ -138,7 +138,7 @@ function parseAgentResponse(data) {
   if (data.serialPorts !== undefined) {
     if (data.serialPorts.length !== window.serialPorts.length || ! data.serialPorts.every(function(value, index) { return value === window.serialPorts[index]})) {
 
-      // console.log("serial ports changed");
+      console.log("serial ports changed");
       window.serialPorts = data.serialPorts;
       // add them to UI
       // remove old

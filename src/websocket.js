@@ -4,8 +4,9 @@ import { agentAddress } from './globals';
 var refreshSpeedSelect = document.getElementById("refreshSpeed");
 
 function newwebsocket() {
-  // let url = 'ws://localhost:8080/ws';
-  let url = `ws://${agentAddress}/ws`;
+  //let url = 'ws://localhost:8080/ws';
+  let url = 'ws://localhost:8080/ws';
+  //let url = `ws://${agentAddress}/ws`;
 
   window.c = new WebSocket(url);
 

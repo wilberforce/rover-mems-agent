@@ -200,4 +200,4 @@ function downloadEeprom() {
   window.URL.revokeObjectURL(url);
 }
 
-export { numCollectedDatapointsSpan, clearFaults, downloadData, downloadEeprom };
+export { numCollectedDatapointsSpan, clearFaults, downloadData, downloadEeprom, outputData };
