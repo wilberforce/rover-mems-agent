@@ -249,23 +249,101 @@ export default {
           CoilFault: false,
           IACPosition: 0,
         },
-        Dataframe80:
-          "801c000085ff4fff638e23001001000000208b60039d003808c1000000",
-        Dataframe7d:
-          "7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
-      },
+        //Dataframe80:          "801c000085ff4fff638e23001001000000208b60039d003808c1000000",
+        //Dataframe7d:          "7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
+        
+   "Dataframe7d": "7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
+   "Dataframe80": "801c089f74ff51ff3983320800010000203787870379055c05f8100000"
+  },
     };
   },
   mounted: function() {
     console.log("mounted");
     this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
+    this.parse7d(this.hexToBytes(this.Dataframe.Dataframe7d));
   },
   methods: {
+    parse7d( data: ArrayBuffer ) {
+      var v = new DataView(data);
+      let len=v.getUint8(1);
+      if ( len !== 32) {
+        this.debug(" expected len 32 for 0x7d")
+      } else 
+      {
+        let v7d = {
+          IgnitionSwitch: true,
+        ThrottleAngle: 0,
+        Uk7d03: v.getUint8(3),
+        AirFuelRatio: 0,
+        DTC2: 0,
+        LambdaVoltage: 0,
+        LambdaFrequency: 0,
+        LambdaDutycycle: 0,
+        LambdaStatus: 0,
+        ClosedLoop: false,
+        LongTermFuelTrim: 0,
+        ShortTermFuelTrim: 0,
+        FuelTrimCorrection: 0,
+        CarbonCanisterPurgeValve: 0,
+        DTC3: v.getUint8(16),
+        IdleBasePosition: 0,
+        Uk7d10: v.getUint8(16),
+        DTC4: 0,
+        IgnitionAdvanceOffset7d: 0,
+        IdleSpeedOffset: 0,
+        Uk7d14: v.getUint8(20),
+        Uk7d15: v.getUint8(21),
+        DTC5: v.getUint8(22),
+        Uk7d17: v.getUint8(23),
+        Uk7d18: v.getUint8(24),
+        Uk7d19: v.getUint8(25),
+        Uk7d1a: v.getUint8(26),
+        Uk7d1b: v.getUint8(27),
+        Uk7d1c: v.getUint8(28),
+        Uk7d1d: v.getUint8(29),
+        Uk7d1e: v.getUint8(30),
+        JackCount: v.getUint8(31)
+        }
+        console.log(v7d);
+      }
+    },
     parse80( data: ArrayBuffer ) {
-      var view = new DataView(data);
-      let len=view.getUint8(1);
-      if ( len === 28) {
-        console.log("80");
+      var v = new DataView(data);
+      let len=v.getUint8(1);
+      if ( len !== 28) {
+        this.debug(" expected len 28 for 0x80")
+      } else 
+      {
+        
+        let v80 = {
+          EngineRPM: v.getInt16(2),
+        CoolantTemp: v.getUint8(3) - 55.0,
+        AmbientTemp: v.getUint8(4) -55.0,
+        IntakeAirTemp: v.getUint8(5) - 55.0,
+        FuelTemp: v.getUint8(6) - 55.0,
+        ManifoldAbsolutePressure: v.getUint8(7),
+        BatteryVoltage: v.getUint8(8) /10.0,
+        ThrottlePotSensor: v.getUint8(9) / 200,
+        ThrottlePosition: 0,
+        IdleSwitch: false,
+        AirconSwitch: false,
+        ParkNeutralSwitch: v.getUint8(12),
+        DTC0: v.getUint8(13),
+        DTC1: v.getUint8(14),
+        IdleSetPoint: v.getUint8(15)*6.1,
+        IdleHot: v.getUint8(16),
+        Uk8011: v.getUint8(17),
+        IACPosition: v.getUint8(18),//?
+//19?
+        IdleSpeedDeviation: v.getInt16(20),
+        IgnitionAdvanceOffset80: v.getInt8(22),
+        IgnitionAdvance: v.getInt8(24)/2.0-24,
+        CoilTime: v.getInt16(24) * 2,
+        CrankshaftPositionSensor: v.getUint8(25), // 25?????
+        Uk801a: v.getInt16(26),
+        Uk801b: v.getInt16(27)
+        }
+        console.log(v80);
 
       }
     },
