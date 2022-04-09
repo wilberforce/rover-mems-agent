@@ -1,6 +1,6 @@
 import { commandsError } from './script';
 import { parseAgentResponse} from './agent';
-import { agentAddress } from './globals';
+//import { agentAddress } from './globals';
 var refreshSpeedSelect = document.getElementById("refreshSpeed");
 
 function newwebsocket() {
