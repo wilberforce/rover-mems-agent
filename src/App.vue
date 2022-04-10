@@ -203,7 +203,6 @@ export default {
           //Uk7d1e: v.getUint8(0x1e),
           //JackCount: v.getUint8(0x1f),
         };
-        console.log(v7d);
         Object.assign(this.Dataframe, v7d);
       }
     },
@@ -240,7 +239,6 @@ export default {
           Uk801a: v.getUint8(0x1a),
           Uk801b: v.getUint8(0x1b),
         };
-        console.log(v80);
         Object.assign(this.Dataframe, v80);
       }
     },
@@ -256,7 +254,7 @@ export default {
     },
 
     async sendToEcu(bytes) {
-      this.debug(">> " + this.hex(bytes), " ");
+      //this.debug(">> " + this.hex(bytes), " ");
       let writer = this.port.writable.getWriter();
       writer.write(Uint8Array.from(bytes));
       writer.releaseLock();
@@ -265,6 +263,7 @@ export default {
       return bytes.map((x) => x.toString(16).padStart(2, "0")).join(delim);
     },
     debug(msg) {
+      debugger;
       console.log(msg);
       let el = document.getElementById("console");
       el.innerHTML = msg + "\n" + el.innerHTML;
@@ -310,8 +309,15 @@ export default {
       console.log(this.port);
 
       this.sendToEcu([0xd1]);
+
+      this.timer=setInterval(
+        () => {
+          this.sendToEcu([0x7d]);
+        },500
+      );
       
       let read='';
+      let start=null;
       while (this.port.readable) {
         const reader = this.port.readable.getReader();
         this.debug("waiting on data...");
@@ -327,17 +333,18 @@ export default {
               break;
             }
             
-            read = read + this.hex(Array.from(value)).substring(2);
-            this.debug(`d: ${read} v: ${value}`);
-
-            switch (value[0]) {
+            
+            read = read.concat(this.hex(Array.from(value)));
+            //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
+            if ( start === null ) start=value[0];
+            switch (start) {
               case 0x80:
                 if (read.length < 60)
                   {
-                    this.debug("expected 60 bytes for 0x80");
+                    //this.debug("expected 60 bytes for 0x80");
                     break;
-                  }                
-                this.debug(read);
+                  }    
+                 read=read.substring(2);            
                 this.Dataframe.Dataframe80 = read;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
@@ -345,17 +352,18 @@ export default {
                   Dataframe7d: this.Dataframe.Dataframe7d,
                 });
                 this.parse80(this.hexToBytes(read));
-                this.sendToEcu([0x7d]); // trigger next frame
+                //this.sendToEcu([0x7d]); // trigger next frame
                 read='';
+                start=null;
                 break;
                  
               case 0x7d:
                   if (read.length < 66)
                   {
-                    this.debug("expected 66 bytes for 0x80");
+                    //this.debug("expected 66 bytes for 0x80");
                     break;
                   }      
-                this.debug(read);
+                  read=read.substring(2);
                 this.Dataframe.Dataframe7d = read;
                 let now = new Date();
                 new Date().getMilliseconds();
@@ -363,19 +371,24 @@ export default {
                 this.parse7D(this.hexToBytes(read));
                 this.sendToEcu([0x80]); // trigger next frame
                 read='';
+                start=null;
                 break;
               case 0xd1:
-                if (read.length < 26)
+                if (read.length < 76)
                   {
-                    this.debug("expected 26 bytes for 0xd1");
+                    this.debug("expected 76 bytes for 0xd1");
                     break;
                   }      
+                  read=read.substring(2);
                 this.parseD1(read);
                 read='';
+                start=null;
                 break;
                
               default: {
-                this.debug(read);
+                read=read.substring(2);
+                this.debug('default:', read)
+               start=null;
                 read='';
               }
             }
