@@ -263,7 +263,6 @@ export default {
       return bytes.map((x) => x.toString(16).padStart(2, "0")).join(delim);
     },
     debug(msg) {
-      debugger;
       console.log(msg);
       let el = document.getElementById("console");
       el.innerHTML = msg + "\n" + el.innerHTML;
@@ -308,16 +307,17 @@ export default {
       });
       console.log(this.port);
 
-      this.sendToEcu([0xd1]);
+      if ( 0 ) this.sendToEcu([0xd1]);
 
       this.timer=setInterval(
         () => {
-          this.sendToEcu([0x7d]);
+          //this.sendToEcu([0x7d]);
         },500
       );
       
       let read='';
       let start=null;
+      let first=1;
       while (this.port.readable) {
         const reader = this.port.readable.getReader();
         this.debug("waiting on data...");
@@ -329,13 +329,14 @@ export default {
             const { value, done } = await reader.read();
 
             if (done) {
-              trace("read all the data");
+              this.debug("serial reader done");
               break;
             }
             
             
             read = read.concat(this.hex(Array.from(value)));
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
+            this.debug( `<< ${read}`);
             if ( start === null ) start=value[0];
             switch (start) {
               case 0x80:
@@ -356,7 +357,13 @@ export default {
                 read='';
                 start=null;
                 break;
-                 
+              
+              case 0x7c: {
+                if ( first )
+               this.sendToEcu([ 0x83]);
+               first++
+               this.debug('Stage 2 ');
+              }
               case 0x7d:
                   if (read.length < 66)
                   {
@@ -404,16 +411,15 @@ export default {
     },
     async newInit() {
       let ecuAddress = 0x16;
-
-      trace("Connecting to MEMS 1.9 ECU");
+      this.debug("Connecting to MEMS 1.9 ECU");
       await this.port.setSignals({ break: false });
       this.debug("sleeping for 2 seconds to clear the line");
-      await sleep(2000);
+      await this.sleep(2000);
       await this.port.setSignals({ break: true });
-      await sleep(200);
+      await this.sleep(200);
 
       for (var i = 0; i < 8; i++) {
-        bit = (ecuAddress >> i) & 1;
+        let bit = (ecuAddress >> i) & 1;
         this.debug(i + " " + bit);
 
         if (bit > 0) {
@@ -421,12 +427,12 @@ export default {
         } else {
           await this.port.setSignals({ break: true });
         }
-        await sleep(200);
+        await this.sleep(200);
         // await sleep(195);
       }
       // stop bit
       await this.port.setSignals({ break: false });
-      await sleep(200);
+      await this.sleep(200);
 
       this.debug("continuing with normal init");
 
@@ -435,7 +441,7 @@ export default {
 
       this.debug("would send " + this.hex([send]));
       this.debug("1.9 ECU woke up - init stage 1")
-      sleep(5);
+      this.sleep(5);
 			
       this.sendToEcu([send]);
     },
