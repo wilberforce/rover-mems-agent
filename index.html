@@ -1,67 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-<!-- Required meta tags -->
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
 <title>Rover MEMS Diagnostic</title>
-
-<style>
-  pre {
-    border: 1px solid black;
-    max-height: 30rem;
-    overflow: hidden;
-  }
-  #outputs div {
-    border-bottom: 1px solid grey;
-    display: block;
-  }
-  #ecuConnected.disconnected {
-    color: red;
-  }
-  #ecuConnected.connected {
-    color: green;
-  }
-  #debugWrapper {
-    display: none;
-  }
-  .canvasWrapper {
-    margin-bottom: 1em;
-  }
-  .addChartButton {
-    cursor: pointer;
-  }
-  .deleteGraphButton {
-    cursor: pointer;
-  }
-  .outputLabel {
-    margin-right: 0.5em;
-    font-weight: 500;
-  }
-  .outputValue {
-
-  }
-
-  .fault {
-    display: inline-block;
-  }
-
-  #httpsWarning {
-    background: red;
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 9999;
-    right: 0;
-    bottom: 0;
-    font-size: 3em;
-    text-align: center;
-    color: white;
-    display: none;
-  }
-</style>
-
 </head>
 <body>
 
@@ -78,24 +21,13 @@
   </div>
   </nav>
 
-</div><!--end <div class="fixed-top"> -->
-
-<div id="httpsWarning">
-Please use https:// at the start of the address bar or this will not work.
 </div>
-<script type="text/javascript">
-if (location.protocol !== 'https:' && location.hostname != 'localhost') {
-// if (location.protocol !== 'https:') {
-    document.getElementById("httpsWarning").style.display = "block";
-}
-</script>
 
 <div class="container-sm">
 
 <div id="commands_error_placeholder"></div>
 
-<br>
-<div class="mt-5" id="app"></div>
+<div style="margin-top: 5rem" id="app"></div>
 
 (USB cable) Serial port:
 <select id="serialPort" name="serialPort">

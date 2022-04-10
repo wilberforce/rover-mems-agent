@@ -1,132 +1,3 @@
-<template>
-  <div>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="openSerialPort()"
-    >
-      Open Serial Port
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="newInit()"
-    >
-      New Init
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="download()"
-    >
-      <i class="fas fa-download"></i>
-      Download
-    </button>
-    <br />
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x7d, 0x80])"
-    >
-      All Data
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x80])"
-    >
-      Data 80
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x7d])"
-    >
-      Data 7D
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xd1])"
-    >
-      ECU ID
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xf0])"
-    >
-      Diagnostic mode Read
-    </button>
-
-    <br />
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x1d])"
-    >
-      Fan On
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x0d])"
-    >
-      Fan OFF
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x91])"
-    >
-      Idle +
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x92])"
-    >
-      Idle -
-    </button>
-
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x7b])"
-    >
-      Fuel Trim +
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x7a])"
-    >
-      Fuel Trim -
-    </button>
-
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x93])"
-    >
-      Ign Trim +
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x94])"
-    >
-      Ign Trim -
-    </button>
-
-  </div>
-
-  <hr />
-
-  <table class="table">
-    <tr>
-      <th>Name</th>
-      <th>Value</th>
-    </tr>
-    <tr><td>Time</td><td>{{Dataframe.Time}}</td></tr>
-    <tr><td>Dataframe7d</td><td>{{Dataframe.Dataframe7d}}</td></tr>
-    <tr><td>Dataframe80</td><td>{{Dataframe.Dataframe80}}</td></tr>
-    <tr><td>RPM</td><td>{{Dataframe.EngineRPM}}</td></tr>
-    <tr><td>AFR</td><td>{{Dataframe.AirFuelRatio}}</td></tr>
-    <tr><td>Lambda</td><td>{{Dataframe.LambdaVoltage}}</td></tr>
-    <tr><td>Short Term Fuel Trim</td><td>{{Dataframe.ShortTermFuelTrim}}</td></tr>
-    <tr><td>ECUID</td><td>{{ECUID}}</td></tr>
-    <tr><td>ECUSerial</td><td>{{ECUSerial}}</td></tr>
-    
-  </table>
-
-  <pre id="console"></pre>
-</template>
-
 <script lang="ts">
 export default {
   name: "app",
@@ -260,7 +131,8 @@ export default {
 
         Dataframe7d:
           //"7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
-            "7d0000000000000000000000000000000000000000000000000000000000000000",
+          //"7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
+          "7d0000000000000000000000000000000000000000000000000000000000000000",
         Dataframe80:
           //"801c089f74ff51ff3983320800010000203787870379055c05f8100000",
           "8000000000000000000000000000000000000000000000000000000000",
@@ -272,17 +144,18 @@ export default {
     this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
     this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
     this.parseD1("D141424E4D5030303399000303");
+
     this.parseD1(
       "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
     );
-    */
+     */
   },
   methods: {
     parseD1(data) {
-      // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630
+      // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630 1.9 response longer...
+      // _ KLH3V005 ___ KLH3V005 ___ KLH3V0
       let bytes = this.hexToBytes(data);
       var v = new DataView(bytes);
-      debugger;
       this.ECUSerial = v.getUint32(9).toString();
       this.ECUID = String.fromCharCode.apply(
         null,
@@ -292,7 +165,8 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len < 32) { // len is 33
+      if (len < 32) {
+        // len is 33
         this.debug(`expected len 32 for 0x7d got ${len}`);
       } else {
         let v7d = {
@@ -330,7 +204,7 @@ export default {
           //JackCount: v.getUint8(0x1f),
         };
         console.log(v7d);
-        Object.assign(this.Dataframe,v7d);
+        Object.assign(this.Dataframe, v7d);
       }
     },
     parse80(data: ArrayBuffer) {
@@ -367,7 +241,7 @@ export default {
           Uk801b: v.getUint8(0x1b),
         };
         console.log(v80);
-        Object.assign(this.Dataframe,v80);
+        Object.assign(this.Dataframe, v80);
       }
     },
     hexToBytes(hex: string) {
@@ -380,46 +254,14 @@ export default {
     async sleep(ms) {
       await new Promise((resolve) => setTimeout(resolve, ms));
     },
-    async newInit() {
-      let ecuAddress = 0x16;
 
-      await this.port.setSignals({ break: false });
-      this.debug("sleeping for 2 seconds to clear the line");
-      await sleep(2000);
-      await this.port.setSignals({ break: true });
-      await sleep(200);
-
-      for (var i = 0; i < 8; i++) {
-        bit = (ecuAddress >> i) & 1;
-        this.debug(i + " " + bit);
-
-        if (bit > 0) {
-          await this.port.setSignals({ break: false });
-        } else {
-          await this.port.setSignals({ break: true });
-        }
-        await sleep(200);
-        // await sleep(195);
-      }
-      // stop bit
-      await this.port.setSignals({ break: false });
-      await sleep(200);
-
-      this.debug("continuing with normal init");
-      //start=2;
-      //this.sendToEcu([0x7c,0xCA,0x75,0xd0,0x80]);
-      let reply = 0x83;
-      let send = reply ^ 0xff;
-
-      this.debug("would send " + this.hex([send]));
-    },
     async sendToEcu(bytes) {
-      this.debug(">> " + this.hex(bytes),' ');
+      this.debug(">> " + this.hex(bytes), " ");
       let writer = this.port.writable.getWriter();
       writer.write(Uint8Array.from(bytes));
       writer.releaseLock();
     },
-    hex(bytes,delim='') {
+    hex(bytes, delim = "") {
       return bytes.map((x) => x.toString(16).padStart(2, "0")).join(delim);
     },
     debug(msg) {
@@ -442,15 +284,25 @@ export default {
       a.href = url;
       a.download = log.Name;
       a.click();
-      log.MemsData=[];
+      log.MemsData = [];
     },
+    async closeSerialPort() {
+      this.port.close()
+      this.port=null;
+    },
+
     async openSerialPort() {
+      let ports = await navigator.serial.getPorts();
+      console.log(ports);
+      let info = ports[0].getInfo();
+
       this.port = await navigator.serial.requestPort();
-      console.log(this.port);
+      console.log(this.port.getInfo());
 
       await this.port.open({
         baudRate: 9600,
         databits: 8,
+        bufferSize: 64,
         parity: "none",
         stopbits: 1,
         flowControl: "none",
@@ -491,6 +343,10 @@ export default {
                 let now = new Date();
                 new Date().getMilliseconds();
                 this.Dataframe.Time = `${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
+                if (data.length < 64) {
+                  this.debug("padding");
+                  data = data.padEnd(25, "0");
+                }
                 this.parse7D(this.hexToBytes(data));
                 this.sendToEcu([0x80]); // trigger next frame
                 break;
@@ -503,7 +359,6 @@ export default {
             }
           }
         } catch (error) {
-          // Handle |error|...
           this.debug(`error: ${error.message}`);
           console.log(error);
         } finally {
@@ -512,8 +367,231 @@ export default {
         }
       }
     },
+    async newInit() {
+      let ecuAddress = 0x16;
+
+      await this.port.setSignals({ break: false });
+      this.debug("sleeping for 2 seconds to clear the line");
+      await sleep(2000);
+      await this.port.setSignals({ break: true });
+      await sleep(200);
+
+      for (var i = 0; i < 8; i++) {
+        bit = (ecuAddress >> i) & 1;
+        this.debug(i + " " + bit);
+
+        if (bit > 0) {
+          await this.port.setSignals({ break: false });
+        } else {
+          await this.port.setSignals({ break: true });
+        }
+        await sleep(200);
+        // await sleep(195);
+      }
+      // stop bit
+      await this.port.setSignals({ break: false });
+      await sleep(200);
+
+      this.debug("continuing with normal init");
+
+      let reply = 0x83;
+      let send = reply ^ 0xff;
+
+      this.debug("would send " + this.hex([send]));
+      //this.sendToEcu([send]);
+    },
   },
 };
 </script>
 
+<template>
+  <span class="float-right">
+    <label
+      >ECU ID: <span class="badge badge-dark">{{ ECUID }}</span></label
+    >
+    <label class="ml-3"
+      >ECU Serial: <span class="badge badge-dark">{{ ECUSerial }}</span></label
+    >
+  </span>
+  <button
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="openSerialPort()"
+  >
+    Open Serial Port
+  </button>
+
+   <button
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="closeSerialPort()"
+  >
+    Disconnect
+  </button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">
+    New Init
+  </button>
+
+  <hr />
+
+  <div class="card-group text-center">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Time</h6>
+        <h3 class="card-text">{{ Dataframe.Time }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">RPM</h6>
+        <h3 class="card-text">{{ Dataframe.EngineRPM }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">AFR</h6>
+        <h3 class="card-text">{{ Dataframe.AirFuelRatio }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Lambda</h6>
+        <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-group text-center mt-2">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Short Term Fuel Trim</h6>
+        <h3 class="card-text">{{ Dataframe.ShortTermFuelTrim }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Long Term Fuel Trim</h6>
+        <h3 class="card-text">{{ Dataframe.LongTermFuelTrim }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Ignition Advance</h6>
+        <h3 class="card-text">{{ Dataframe.IgnitionAdvance }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Ignition Advance Offset</h6>
+        <h3 class="card-text">{{ Dataframe.IgnitionAdvanceOffset80 }}</h3>
+      </div>
+    </div>
+  </div>
+  <hr />
+  <label
+    ><span class="badge badge-light">{{ Dataframe.Dataframe7d }}</span></label
+  >
+  <label
+    ><span class="badge badge-light">{{ Dataframe.Dataframe80 }}</span></label
+  >
+  <hr />
+  <div>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="download()"
+    >
+      <i class="fas fa-download"></i>
+      Download
+    </button>
+    <br />
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x7d, 0x80])"
+    >
+      All Data
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x80])"
+    >
+      Data 80
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x7d])"
+    >
+      Data 7D
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0xd1])"
+    >
+      ECU ID
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0xf0])"
+    >
+      Diagnostic mode Read
+    </button>
+
+    <br />
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x1d])"
+    >
+      Fan On
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x0d])"
+    >
+      Fan OFF
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x91])"
+    >
+      Idle +
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x92])"
+    >
+      Idle -
+    </button>
+
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x7b])"
+    >
+      Fuel Trim +
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x7a])"
+    >
+      Fuel Trim -
+    </button>
+
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x93])"
+    >
+      Ign Trim +
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0x94])"
+    >
+      Ign Trim -
+    </button>
+  </div>
+
+  <pre id="console"></pre>
+</template>
 <style lang="scss"></style>
