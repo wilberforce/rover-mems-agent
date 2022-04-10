@@ -3,7 +3,11 @@ export default {
   name: "app",
   data() {
     return {
-      port: null,
+      ser: {
+        mode: 0,
+        port: null,
+        buffer: "",
+      },
       ECUID: "",
       ECUSerial: "",
       log: {
@@ -133,7 +137,7 @@ export default {
         Dataframe7d:
           //"7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
           //"7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
-"7d0000000000000000000000000000000000000000000000000000000000000000",
+          "7d0000000000000000000000000000000000000000000000000000000000000000",
         Dataframe80:
           //"801c089f74ff51ff3983320800010000203787870379055c05f8100000",
           "8000000000000000000000000000000000000000000000000000000000",
@@ -256,7 +260,7 @@ export default {
 
     async sendToEcu(bytes) {
       //this.debug(">> " + this.hex(bytes), " ");
-      let writer = this.port.writable.getWriter();
+      let writer = this.ser.port.writable.getWriter();
       writer.write(Uint8Array.from(bytes));
       writer.releaseLock();
     },
@@ -286,19 +290,24 @@ export default {
       log.MemsData = [];
     },
     async closeSerialPort() {
-      this.port.close()
-      this.port=null;
+      if (this.ser.reader) {
+        await this.ser.reader.cancel();
+      }
+      await this.ser.port.close();
+      this.ser.reader = null;
+      this.ser.port = null;
+      this.ser.mode = 0;
     },
 
     async openSerialPort() {
-    //  let ports = await navigator.serial.getPorts();
-  //    console.log(ports);
-//      let info = ports[0].getInfo();
+      //  let ports = await navigator.serial.getPorts();
+      //    console.log(ports);
+      //      let info = ports[0].getInfo();
 
-      this.port = await navigator.serial.requestPort();
-      console.log(this.port.getInfo());
+      this.ser.port = await navigator.serial.requestPort();
+      console.log(this.ser.port.getInfo());
 
-      await this.port.open({
+      await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
         bufferSize: 128,
@@ -306,47 +315,45 @@ export default {
         stopbits: 1,
         flowControl: "none",
       });
-      console.log(this.port);
+      console.log(this.ser.port);
 
-      if ( 0 ) this.sendToEcu([0xd1]);
+      if (0) this.sendToEcu([0xd1]);
 
-      if ( 0 ) this.timer=setInterval(
-        () => {
+      if (0)
+        this.timer = setInterval(() => {
           this.sendToEcu([0x7d]);
-        },500
-      );
-      
-      let read='';
-      let start=null;
-      let first=1;
-      while (this.port.readable) {
-        const reader = this.port.readable.getReader();
+        }, 500);
+
+      let read = "";
+      let start = null;
+      while (this.ser.port.readable) {
+        this.ser.reader = this.ser.port.readable.getReader();
         this.debug("waiting on data...");
-        
+
         try {
-          
           while (true) {
-            
-            const { value, done } = await reader.read();
+            const { value, done } = await this.ser.reader.read();
 
             if (done) {
-              this.debug("serial reader done");
-              break;
+              this.debug("serial this.ser.reader done");
+              return;
             }
-            
-            
-            read = read.concat(this.hex(Array.from(value)));
+
+            this.ser.buffer = this.ser.buffer.concat(
+              this.hex(Array.from(value))
+            );
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
             //this.debug( `<< ${read}`);
-            if ( start === null ) start=value[0];
+            if (start === null) start = value[0];
             switch (start) {
               case 0x80:
-                if (read.length < 56)
-                  {
-                    this.debug(`expected 56 (${read.length}) bytes for 0x80`);
-                    break;
-                  }    
-                 read=read.substring(2);            
+                if (this.ser.buffer.length < 56) {
+                  this.debug(
+                    `expected 56 (${this.ser.buffe.length}) bytes for 0x80`
+                  );
+                  break;
+                }
+                this.ser.buffer = this.ser.buffer.substring(2);
                 this.Dataframe.Dataframe80 = read;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
@@ -355,93 +362,91 @@ export default {
                 });
                 this.parse80(this.hexToBytes(read));
                 //this.sendToEcu([0x7d]); // trigger next frame
-                read='';
-                start=null;
+                this.ser.buffer = "";
+                start = null;
                 break;
-                 case 0x00: {
-               this.debug('Got 0x00');
-               read='';
-                 }
+              case 0x00: {
+                this.debug("Got 0x00");
+                this.ser.buffer = "";
+              }
 
-                 
               case 0x55: {
                 let send = start ^ 0xff;
 
-                this.debug("1.9 ECU woke up - init stage 1")
-await this.sleep(100)
-               //this.sendToEcu([0xca]);
-               first++
-               this.debug('Got 0x55! stage 1');
-               read='';
-                start=null;
+                this.debug(
+                  `1.9 ECU woke up - init stage 1, ${this.ser.buffer} ${send.toString(16)}`
+                );
+                await this.sleep(100);
+                this.sendToEcu([0xca]);
+
+                this.debug("Got 0x55! stage 1");
+                this.ser.buffer = "";
+                start = null;
                 break;
               }
-              
-              case 0xCA: {
-                //if ( first === 1 )
-               this.sendToEcu([ 0x75]);
-               first++
-               this.debug('75 Stage 2 ');
-               read='';
-                start=null;
+
+              case 0xca: {
+                this.sendToEcu([0x75]);
+
+                this.debug(`75 Stage 2 ${this.ser.buffer}`);
+                this.ser.buffer = "";
+                start = null;
                 break;
               }
-              
+
               case 0x75: {
-                //if ( first === 1 )
-               this.sendToEcu([ 0xd0]);
-               first++
-               this.debug('F4 Stage 3 - ');
-               read='';
-                start=null;
+                this.sendToEcu([0xd0]);
+
+                this.debug(`F4 Stage 3 - ${this.ser.buffer}`);
+                this.ser.buffer = "";
+                start = null;
                 break;
               }
-              
-              case 0xD0: {
-                //if ( first === 1 )
-              // this.sendToEcu([ 0xD0]);
-               first++
-               this.debug('dO Stage 4 ');
-               this.debug(read);
-               read='';
-                start=null;
+
+              case 0xd0: {
+                this.debug(`d0 Stage 4 ${this.ser.buffer}`);
+                this.debug(read);
+                read = "";
+                start = null;
                 break;
               }
               case 0x7d:
-                  if (read.length < 64)
-                  {
-                    this.debug(`expected 64 (${read.length}) bytes for 0x7d`);
-                    break;
-                  }      
-                  read=read.substring(2);
-                this.Dataframe.Dataframe7d = read;
+                if (this.ser.buffer.length < 64) {
+                  this.debug(
+                    `expected 64 (${this.ser.buffer.length}) bytes for 0x7d`
+                  );
+                  break;
+                }
+                this.ser.buffer = this.ser.buffer.substring(2);
+                this.Dataframe.Dataframe7d = this.ser.buffer;
                 let now = new Date();
                 new Date().getMilliseconds();
                 this.Dataframe.Time = `${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
-                this.parse7D(this.hexToBytes(read));
+                this.parse7D(this.hexToBytes(this.ser.buffer));
                 this.sendToEcu([0x80]); // trigger next frame
-                read='';
-                start=null;
+                this.ser.buffer = "";
+                start = null;
                 break;
               case 0xd1:
-                if (read.length < 60)
-                  {
-                    this.debug(`expected 60 bytes for 0xd1, got ${read.length}`);
-                    break;
-                  }      
-                  read=read.substring(2);
-                this.parseD1(read);
-                read='';
-                start=null;
+                if (this.ser.buffer.length < 60) {
+                  this.debug(
+                    `expected 60 bytes for 0xd1, got ${this.ser.buffer.length}`
+                  );
+                  break;
+                }
+                this.ser.buffer = this.ser.buffer.substring(2);
+                this.parseD1(this.ser.buffer);
+                read = "";
+                start = null;
                 break;
-               
+
               default: {
                 //read=read.substring(2);
-               this.debug('default:', read)
-                this.debug( `<< ${read}`);
-            
-               start=null;
-                read='';
+                this.debug("default:", this.ser.buffer);
+                this.debug(`<< ${this.ser.buffer}`);
+
+                start = null;
+                this.ser.buffer = "";
               }
             }
           }
@@ -449,169 +454,58 @@ await this.sleep(100)
           this.debug(`error: ${error.message}`);
           console.log(error);
         } finally {
-          reader.releaseLock();
+          this.ser.reader.releaseLock();
+          this.ser.reader = null;
           this.debug("released lock");
         }
       }
     },
     async newInit() {
       let ecuAddress = 0x16;
-      this.debug(`Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`);
-      await this.port.setSignals({ break: false });
-      
+      this.debug(
+        `Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`
+      );
+      await this.ser.port.setSignals({ break: false });
+
       this.debug("sleeping for 2 seconds to clear the line");
       await this.sleep(20);
-      /*
-break 1
-break 0
-break 1
-break 1
-break 0
-break 1
-break 0
-break 0
-break 0
-break 0
-*/
-      this.debug( 'match break st1 0 1 1 0 1 0 0 0 sp0');
-      // 10010111  hex 97 11101001
-      // 01101011  hex 6B
-      // 01101000  hex 68
-      // 00010110  hex 16 
-      //this.debug('start bit 0');
-      let start=new Date();
-      let times=[];
-      await this.port.setSignals({ break: true });
-     
-      
-      /*await this.sleep(sleepMs);
-      times.push(new Date() - start);
+      let start = new Date();
+      let times = [];
+      await this.ser.port.setSignals({ break: true });
 
+      let i = 0;
 
-      for (var i = 0; i < 8; i++) {
-        let bit = (ecuAddress >> i) & 1;
-        //this.debug(i + " " + bit);
+      ecuAddress = (ecuAddress << 1) | 1;
 
-        if (bit > 0) {
-          await this.port.setSignals({ break: false });
-        } else {
-          await this.port.setSignals({ break: true });
-        }
-        await this.sleep(sleepMs);times.push(new Date() - start);
-        // await sleep(195);
-      }
-      // stop bit
-      await this.port.setSignals({ break: false });
-      //this.debug("stop bit 1");
-      await this.sleep(sleepMs);
-times.push(new Date() - start);
-console.log(times);*/
-let i=0;
-
-times=[];
-//let bits=[];
-ecuAddress=ecuAddress << 1 | 1;
-//debugger;
-let bits=ecuAddress.toString(2).padStart(10,0).split('').reverse();
- let sleepMs=200-5;
- sleepMs=200;
- start=performance.now();
-let timer=setInterval(
-        () => {
-          //let bit = (ecuAddress >> i) & 1;
-          this.port.setSignals({ break: !bits[i] });
-          times.push(performance.now() - start);
-          i=i+1;
-          //bits.push(bit);
-          if ( i === 10 ) clearInterval(timer)
-        },sleepMs);
-console.log(times);
-console.log(bits);
-
-        // (10) [205, 392, 599, 790, 984, 1184, 1371, 1564, 1758, 1964]
-//App.vue:520 (10) ['1', '0', '1', '1', '0', '1', '0', '0', '0', '0']
-
-/*
- await this.port.setSignals({ break: false });
- await this.sleep(2000);
- await this.port.setSignals({ break: true });
- await this.sleep(200);
- await this.port.setSignals({ break: false });
- await this.sleep(200);
- await this.port.setSignals({ break: true });
- await this.sleep(400);
- await this.port.setSignals({ break: false });
- await this.sleep(200);
- await this.port.setSignals({ break: true });
- await this.sleep(800);
- await this.sleep(2200);
-*/
+      let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
+      sleepMs = 200;
+      start = performance.now();
+      let timer = setInterval(() => {
+        this.ser.port.setSignals({ break: !bits[i] });
+        times.push(performance.now() - start);
+        i = i + 1;
+        if (i === 10) clearInterval(timer);
+      }, sleepMs);
+      console.log(times);
       this.debug("continuing with normal init");
-
-      let reply = 0x83;
-      let send = reply ^ 0xff;
-
-      this.debug("1.9 ECU woke up - init stage 1")
-      //await this.sleep(50);
-			//this.debug('done sleep - send 7c')
-      
-      //this.sendToEcu([0xCA]);
-      //this.sendToEcu([send]);
     },
   },
 };
 </script>
 
-/*
-Connecting to MEMS 1.9 ECU
-Serial cable set to:
-9600,8n1,none
-had buffer data: got 0 bytes
-1.9 ECU woke up - init stage 1
-1.9 had buffer data: got 1 bytes
-00000000  7c                                                |||
-Connecting to MEMS 1.9 ECU
-Serial cable set to:
-9600,8n1,none
-had buffer data: got 0 bytes
-1.9 ECU woke up - init stage 1
-1.9 had buffer data: got 1 bytes
-00000000  7c                                                |||
-Connecting to MEMS 1.9 ECU
-Serial cable set to:
-9600,8n1,none
-had buffer data: got 0 bytes
-1.9 ECU woke up - init stage 1
-1.9 had buffer data: got 1 bytes
-00000000  7c                                                |||
-Connecting to MEMS 1.9 ECU
-Serial cable set to:
-9600,8n1,none
-had buffer data: got 0 bytes
-1.9 had buffer data: got 0 bytes
-Connecting to MEMS 1.9 ECU
-Serial cable set to:
-9600,8n1,none
-had buffer data: got 0 bytes
-1.9 ECU woke up - init stage 1
-1.9 ECU init stage 2
-Got CA
-Got 75
-Got F4 00
-Got D0 and ECU ID
-ECU ID:
-00000000  c7 00 05 cb                                       |....|
-Got data 80
-Got data 7D
-Got data 80
-Got data 7D
-Got data 80
-Got data 7D
-Got data 80
-Got data 7D
-Got data 80
-Got data
-*/
+/* Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had buffer
+data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data: got 1
+bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to:
+9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9
+had buffer data: got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial
+cable set to: 9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init
+stage 1 1.9 had buffer data: got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9
+ECU Serial cable set to: 9600,8n1,none had buffer data: got 0 bytes 1.9 had
+buffer data: got 0 bytes Connecting to MEMS 1.9 ECU Serial cable set to:
+9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9
+ECU init stage 2 Got CA Got 75 Got F4 00 Got D0 and ECU ID ECU ID: 00000000 c7
+00 05 cb |....| Got data 80 Got data 7D Got data 80 Got data 7D Got data 80 Got
+data 7D Got data 80 Got data 7D Got data 80 Got data */
 
 <template>
   <span class="float-right">
@@ -629,7 +523,7 @@ Got data
     Open Serial Port
   </button>
 
-   <button
+  <button
     class="btn btn-outline-secondary btn-sm mr-2 mb-2"
     @click="closeSerialPort()"
   >
@@ -665,7 +559,9 @@ Got data
 
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">Lambda {{Dataframe.ClosedLoop?'Closed':'Open'}}</h6>
+        <h6 class="card-title">
+          Lambda {{ Dataframe.ClosedLoop ? "Closed" : "Open" }}
+        </h6>
         <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
       </div>
     </div>
@@ -699,7 +595,7 @@ Got data
         <h3 class="card-text">{{ Dataframe.IgnitionAdvanceOffset80 }}</h3>
       </div>
     </div>
-    
+
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">Battery Voltage</h6>
@@ -714,6 +610,12 @@ Got data
   <label
     ><span class="badge badge-light">{{ Dataframe.Dataframe80 }}</span></label
   >
+  <br />
+  <label
+    >last input:
+    <span class="badge badge-light">{{ this.ser.buffer }}</span></label
+  >
+
   <hr />
   <div>
     <button
