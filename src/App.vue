@@ -13,7 +13,8 @@ export default {
         Summary: "Test run",
         ECUID: "",
         ECUSerial: "",
-        MemsData: [
+        MemsData: [],
+        MemsData2: [
           {
             Time: "12:35:55.186",
             Dataframe7d:
@@ -307,11 +308,11 @@ export default {
       });
       console.log(this.port);
 
-      if ( 0 ) this.sendToEcu([0xd1]);
+      if ( 1 ) this.sendToEcu([0xd1]);
 
       this.timer=setInterval(
         () => {
-          //this.sendToEcu([0x7d]);
+          this.sendToEcu([0x7d]);
         },500
       );
       
@@ -359,10 +360,33 @@ export default {
                 break;
               
               case 0x7c: {
-                if ( first )
-               this.sendToEcu([ 0x83]);
+                if ( first === 1 )
+               this.sendToEcu([ 0xCA]);
                first++
-               this.debug('Stage 2 ');
+               this.debug('CA Stage 2 ');
+               read='';
+                start=null;
+                break;
+              }
+              
+              case 0xCA: {
+                //if ( first === 1 )
+               this.sendToEcu([ 0x75]);
+               first++
+               this.debug('75 Stage 3 ');
+               read='';
+                start=null;
+                break;
+              }
+              
+              case 0x75: {
+                //if ( first === 1 )
+               this.sendToEcu([ 0xD0]);
+               first++
+               this.debug('dO Stage 4 ');
+               read='';
+                start=null;
+                break;
               }
               case 0x7d:
                   if (read.length < 66)
@@ -395,6 +419,8 @@ export default {
               default: {
                 read=read.substring(2);
                 this.debug('default:', read)
+                this.debug( `<< ${read}`);
+            
                start=null;
                 read='';
               }
