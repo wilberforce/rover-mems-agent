@@ -358,12 +358,20 @@ export default {
                 read='';
                 start=null;
                 break;
-              
-              case 0x7c: {
-                if ( first === 1 )
-               this.sendToEcu([ 0xCA]);
+                 case 0x00: {
+               this.debug('Got 0x00');
+               read='';
+                 }
+
+                 
+              case 0x55: {
+                let send = start ^ 0xff;
+
+                this.debug("1.9 ECU woke up - init stage 1")
+await this.sleep(100)
+               //this.sendToEcu([0xca]);
                first++
-               this.debug('CA Stage 2 ');
+               this.debug('Got 0x55! stage 1');
                read='';
                 start=null;
                 break;
@@ -373,7 +381,7 @@ export default {
                 //if ( first === 1 )
                this.sendToEcu([ 0x75]);
                first++
-               this.debug('75 Stage 3 ');
+               this.debug('75 Stage 2 ');
                read='';
                 start=null;
                 break;
@@ -381,19 +389,20 @@ export default {
               
               case 0x75: {
                 //if ( first === 1 )
-               this.sendToEcu([ 0xF4]);
+               this.sendToEcu([ 0xd0]);
                first++
-               this.debug('75 Stage 4 ');
+               this.debug('F4 Stage 3 - ');
                read='';
                 start=null;
                 break;
               }
               
-              case 0xF4: {
+              case 0xD0: {
                 //if ( first === 1 )
-               this.sendToEcu([ 0xD0]);
+              // this.sendToEcu([ 0xD0]);
                first++
-               this.debug('dO Stage 5 ');
+               this.debug('dO Stage 4 ');
+               this.debug(read);
                read='';
                 start=null;
                 break;
@@ -427,8 +436,8 @@ export default {
                 break;
                
               default: {
-                read=read.substring(2);
-                this.debug('default:', read)
+                //read=read.substring(2);
+               this.debug('default:', read)
                 this.debug( `<< ${read}`);
             
                start=null;
@@ -447,13 +456,11 @@ export default {
     },
     async newInit() {
       let ecuAddress = 0x16;
-      //let ecuAddress = 0x97;
-      //let ecuAddress = 0xE9; // 11101001
       this.debug(`Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`);
       await this.port.setSignals({ break: false });
       
       this.debug("sleeping for 2 seconds to clear the line");
-      await this.sleep(2000);
+      await this.sleep(20);
       /*
 break 1
 break 0
@@ -466,44 +473,89 @@ break 0
 break 0
 break 0
 */
-      this.debug( 'match break s1 0 1 1 0 1 0 0 0 s0');
+      this.debug( 'match break st1 0 1 1 0 1 0 0 0 sp0');
       // 10010111  hex 97 11101001
       // 01101011  hex 6B
       // 01101000  hex 68
       // 00010110  hex 16 
-      this.debug('start bit 0');
+      //this.debug('start bit 0');
+      let start=new Date();
+      let times=[];
       await this.port.setSignals({ break: true });
-      await this.sleep(200);
+     
+      
+      /*await this.sleep(sleepMs);
+      times.push(new Date() - start);
 
 
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-        this.debug(i + " " + bit);
+        //this.debug(i + " " + bit);
 
         if (bit > 0) {
           await this.port.setSignals({ break: false });
         } else {
           await this.port.setSignals({ break: true });
         }
-        await this.sleep(200);
+        await this.sleep(sleepMs);times.push(new Date() - start);
         // await sleep(195);
       }
       // stop bit
       await this.port.setSignals({ break: false });
-      this.debug("stop bit 1");
-      await this.sleep(200);
+      //this.debug("stop bit 1");
+      await this.sleep(sleepMs);
+times.push(new Date() - start);
+console.log(times);*/
+let i=0;
 
+times=[];
+//let bits=[];
+ecuAddress=ecuAddress << 1 | 1;
+//debugger;
+let bits=ecuAddress.toString(2).padStart(10,0).split('').reverse();
+ let sleepMs=200-5;
+ sleepMs=200;
+ start=performance.now();
+let timer=setInterval(
+        () => {
+          //let bit = (ecuAddress >> i) & 1;
+          this.port.setSignals({ break: !bits[i] });
+          times.push(performance.now() - start);
+          i=i+1;
+          //bits.push(bit);
+          if ( i === 10 ) clearInterval(timer)
+        },sleepMs);
+console.log(times);
+console.log(bits);
+
+        // (10) [205, 392, 599, 790, 984, 1184, 1371, 1564, 1758, 1964]
+//App.vue:520 (10) ['1', '0', '1', '1', '0', '1', '0', '0', '0', '0']
+
+/*
+ await this.port.setSignals({ break: false });
+ await this.sleep(2000);
+ await this.port.setSignals({ break: true });
+ await this.sleep(200);
+ await this.port.setSignals({ break: false });
+ await this.sleep(200);
+ await this.port.setSignals({ break: true });
+ await this.sleep(400);
+ await this.port.setSignals({ break: false });
+ await this.sleep(200);
+ await this.port.setSignals({ break: true });
+ await this.sleep(800);
+ await this.sleep(2200);
+*/
       this.debug("continuing with normal init");
 
       let reply = 0x83;
       let send = reply ^ 0xff;
 
-      this.debug("would send " + this.hex([send]));
       this.debug("1.9 ECU woke up - init stage 1")
-      await this.sleep(50);
-			this.debug('done sleep - send 7c')
+      //await this.sleep(50);
+			//this.debug('done sleep - send 7c')
       
-      this.sendToEcu([0xCA]);
+      //this.sendToEcu([0xCA]);
       //this.sendToEcu([send]);
     },
   },
