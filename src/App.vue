@@ -366,20 +366,22 @@ export default {
                 start = null;
                 break;
               case 0x00: {
-                this.debug("Got 0x00");
+                this.debug(`stage 0 <<${this.ser.buffer} wait...`);
                 this.ser.buffer = "";
+                start=null;
+                break
               }
 
               case 0x55: {
-                let send = start ^ 0xff;
-
+                this.debug(`stage 1 <<${this.ser.buffer} >> ca`);
+// expect 0x55, 0x76, 0x83                
                 this.debug(
-                  `1.9 ECU woke up - init stage 1, ${this.ser.buffer} ${send.toString(16)}`
+                  `1.9 ECU woke up - init stage 1, ${this.ser.buffer} ${start.toString(16)}`
                 );
-                await this.sleep(100);
+                await this.sleep(2000);
                 this.sendToEcu([0xca]);
 
-                this.debug("Got 0x55! stage 1");
+                this.debug(`stage 1 <<${this.ser.buffer} >> ca`);
                 this.ser.buffer = "";
                 start = null;
                 break;
@@ -388,23 +390,31 @@ export default {
               case 0xca: {
                 this.sendToEcu([0x75]);
 
-                this.debug(`75 Stage 2 ${this.ser.buffer}`);
+                this.debug(`Stage 2 <<${this.ser.buffer} >> 75`);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
 
               case 0x75: {
-                this.sendToEcu([0xd0]);
+                this.sendToEcu([0xf4]);
+                this.debug(`Stage 3 <<${this.ser.buffer} >>f4`);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
 
-                this.debug(`F4 Stage 3 - ${this.ser.buffer}`);
+              case 0xf4: {
+                this.sendToEcu([0xd0]);
+                this.debug(`Stage 4 <<${this.ser.buffer} >> d0`);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
 
               case 0xd0: {
-                this.debug(`d0 Stage 4 ${this.ser.buffer}`);
+                this.debug(`Stage 5 << ${this.ser.buffer} wait`);
+                //this.sendToEcu([0x7d]);
                 this.debug(read);
                 read = "";
                 start = null;
@@ -468,7 +478,7 @@ export default {
       await this.ser.port.setSignals({ break: false });
 
       this.debug("sleeping for 2 seconds to clear the line");
-      await this.sleep(20);
+      await this.sleep(2000);
       let start = new Date();
       let times = [];
       await this.ser.port.setSignals({ break: true });
@@ -476,16 +486,19 @@ export default {
       let i = 0;
 
       ecuAddress = (ecuAddress << 1) | 1;
-
+let sleepMs=200;
       let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
-      sleepMs = 200;
+      sleepMs = 203;
       start = performance.now();
       let timer = setInterval(() => {
         this.ser.port.setSignals({ break: !bits[i] });
         times.push(performance.now() - start);
+        this.debug(bits[i]);
         i = i + 1;
         if (i === 10) clearInterval(timer);
       }, sleepMs);
+      await this.sleep(2200);
+      
       console.log(times);
       this.debug("continuing with normal init");
     },
