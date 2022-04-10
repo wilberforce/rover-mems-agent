@@ -301,7 +301,7 @@ export default {
       await this.port.open({
         baudRate: 9600,
         databits: 8,
-        bufferSize: 64,
+        bufferSize: 128,
         parity: "none",
         stopbits: 1,
         flowControl: "none",

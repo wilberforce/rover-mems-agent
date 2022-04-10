@@ -1,10 +1,11 @@
 package main
 
 import (
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
-	"errors"
-	"encoding/hex"
+
 	"github.com/distributed/sers"
 )
 
@@ -101,6 +102,8 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
 		if slicesEqual(buffer, ecu19WokeResponse) {
       fmt.Println("1.9 ECU woke up - init stage 1")
+
+	  
 			buffer = nil
 			time.Sleep(50 * time.Millisecond) // TODO: is this the right sleep?
       // todo: invert (xor) byte 2 (x83) and send back to ecu
@@ -112,6 +115,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
     if slicesEqual(buffer, ecu19SpecificInitResponse) {
       fmt.Println("1.9 ECU init stage 2")
+	  fmt.Printf("RW buffer data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
       buffer = nil
       ecu1xLoop(sp, true)
       continue
