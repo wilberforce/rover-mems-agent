@@ -392,6 +392,7 @@ export default {
     async newInit() {
       let ecuAddress = 0x16;
 
+      trace("Connecting to MEMS 1.9 ECU");
       await this.port.setSignals({ break: false });
       this.debug("sleeping for 2 seconds to clear the line");
       await sleep(2000);
@@ -420,7 +421,10 @@ export default {
       let send = reply ^ 0xff;
 
       this.debug("would send " + this.hex([send]));
-      //this.sendToEcu([send]);
+      this.debug("1.9 ECU woke up - init stage 1")
+      sleep(5);
+			
+      this.sendToEcu([send]);
     },
   },
 };
@@ -478,7 +482,7 @@ export default {
 
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">Lambda</h6>
+        <h6 class="card-title">Lambda {{Dataframe.ClosedLoop?'Closed':'Open'}}</h6>
         <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
       </div>
     </div>
