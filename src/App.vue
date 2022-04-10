@@ -266,7 +266,7 @@ export default {
     debug(msg) {
       console.log(msg);
       let el = document.getElementById("console");
-      el.innerHTML = msg + "\n" + el.innerHTML;
+      el.innerHTML = el.innerHTML + msg + "\n";
     },
     download() {
       let log = this.log;
@@ -447,12 +447,34 @@ export default {
     },
     async newInit() {
       let ecuAddress = 0x16;
-      this.debug("Connecting to MEMS 1.9 ECU");
+      //let ecuAddress = 0x97;
+      //let ecuAddress = 0xE9; // 11101001
+      this.debug(`Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`);
       await this.port.setSignals({ break: false });
+      
       this.debug("sleeping for 2 seconds to clear the line");
       await this.sleep(2000);
+      /*
+break 1
+break 0
+break 1
+break 1
+break 0
+break 1
+break 0
+break 0
+break 0
+break 0
+*/
+      this.debug( 'match break s1 0 1 1 0 1 0 0 0 s0');
+      // 10010111  hex 97 11101001
+      // 01101011  hex 6B
+      // 01101000  hex 68
+      // 00010110  hex 16 
+      this.debug('start bit 0');
       await this.port.setSignals({ break: true });
       await this.sleep(200);
+
 
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
@@ -468,6 +490,7 @@ export default {
       }
       // stop bit
       await this.port.setSignals({ break: false });
+      this.debug("stop bit 1");
       await this.sleep(200);
 
       this.debug("continuing with normal init");

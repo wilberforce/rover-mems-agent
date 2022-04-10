@@ -55,6 +55,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
   // start bit
 	sp.SetBreak(true)
+	fmt.Println("break 1")
   sleepUntil(start, 200)
 
   // send the byte
@@ -64,8 +65,10 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
     bit := (ecuAddress >> i) & 1;
     if (bit > 0) {
         sp.SetBreak(false)
+		fmt.Println("break 1")
     } else {
         sp.SetBreak(true)
+		fmt.Println("break 0")
     }
 
     sleepUntil(start, 200 + ((i+1)*200))
@@ -73,6 +76,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
   }
   // stop bit
 	sp.SetBreak(false)
+	fmt.Println("break 0")
   sleepUntil(start, 200 + (8*200) + 200)
 
 	buffer := make([]byte, 0)
