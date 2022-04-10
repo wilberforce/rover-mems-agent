@@ -133,7 +133,7 @@ export default {
         Dataframe7d:
           //"7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
           //"7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
-          "7d0000000000000000000000000000000000000000000000000000000000000000",
+"7d0000000000000000000000000000000000000000000000000000000000000000",
         Dataframe80:
           //"801c089f74ff51ff3983320800010000203787870379055c05f8100000",
           "8000000000000000000000000000000000000000000000000000000000",
@@ -291,9 +291,9 @@ export default {
     },
 
     async openSerialPort() {
-      let ports = await navigator.serial.getPorts();
-      console.log(ports);
-      let info = ports[0].getInfo();
+    //  let ports = await navigator.serial.getPorts();
+  //    console.log(ports);
+//      let info = ports[0].getInfo();
 
       this.port = await navigator.serial.requestPort();
       console.log(this.port.getInfo());
@@ -337,13 +337,13 @@ export default {
             
             read = read.concat(this.hex(Array.from(value)));
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
-            this.debug( `<< ${read}`);
+            //this.debug( `<< ${read}`);
             if ( start === null ) start=value[0];
             switch (start) {
               case 0x80:
-                if (read.length < 60)
+                if (read.length < 56)
                   {
-                    //this.debug("expected 60 bytes for 0x80");
+                    this.debug(`expected 56 (${read.length}) bytes for 0x80`);
                     break;
                   }    
                  read=read.substring(2);            
@@ -399,9 +399,9 @@ export default {
                 break;
               }
               case 0x7d:
-                  if (read.length < 66)
+                  if (read.length < 64)
                   {
-                    //this.debug("expected 66 bytes for 0x80");
+                    this.debug(`expected 64 (${read.length}) bytes for 0x7d`);
                     break;
                   }      
                   read=read.substring(2);
@@ -415,9 +415,9 @@ export default {
                 start=null;
                 break;
               case 0xd1:
-                if (read.length < 76)
+                if (read.length < 60)
                   {
-                    this.debug("expected 76 bytes for 0xd1");
+                    this.debug(`expected 60 bytes for 0xd1, got ${read.length}`);
                     break;
                   }      
                   read=read.substring(2);
@@ -479,7 +479,9 @@ export default {
       this.debug("1.9 ECU woke up - init stage 1")
       await this.sleep(50);
 			this.debug('done sleep - send 7c')
-      this.sendToEcu([send]);
+      
+      this.sendToEcu([0xCA]);
+      //this.sendToEcu([send]);
     },
   },
 };
