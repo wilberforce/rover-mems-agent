@@ -102,7 +102,7 @@ function parseAgentResponse(data) {
   }
 
   if (data.selectedSerialPort !== undefined) {
-
+console.log(data.selectedSerialPort);
     if (serialPortUI.value == "") {
       if (data.selectedSerialPort != "") {
         // select the one the ECU said
@@ -136,6 +136,7 @@ function parseAgentResponse(data) {
   }
 
   if (data.serialPorts !== undefined) {
+    console.log(data.serialPorts);
     if (data.serialPorts.length !== window.serialPorts.length || ! data.serialPorts.every(function(value, index) { return value === window.serialPorts[index]})) {
 
       console.log("serial ports changed");

@@ -310,51 +310,73 @@ export default {
       console.log(this.port);
 
       this.sendToEcu([0xd1]);
-
+      
+      let read='';
       while (this.port.readable) {
         const reader = this.port.readable.getReader();
-        this.debug("reading...");
+        this.debug("waiting on data...");
+        
         try {
+          
           while (true) {
+            
             const { value, done } = await reader.read();
 
             if (done) {
               trace("read all the data");
               break;
             }
-            let data = this.hex(Array.from(value)).substring(2);
-            this.debug(data);
+            
+            read = read + this.hex(Array.from(value)).substring(2);
+            this.debug(`d: ${read} v: ${value}`);
 
             switch (value[0]) {
               case 0x80:
-                this.debug("got 80");
-                this.Dataframe.Dataframe80 = data;
+                if (read.length < 60)
+                  {
+                    this.debug("expected 60 bytes for 0x80");
+                    break;
+                  }                
+                this.debug(read);
+                this.Dataframe.Dataframe80 = read;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
                   Dataframe7d: this.Dataframe.Dataframe7d,
                 });
-                this.parse80(this.hexToBytes(data));
+                this.parse80(this.hexToBytes(read));
                 this.sendToEcu([0x7d]); // trigger next frame
+                read='';
                 break;
+                 
               case 0x7d:
-                this.debug("got 0x7d");
-                this.Dataframe.Dataframe7d = data;
+                  if (read.length < 66)
+                  {
+                    this.debug("expected 66 bytes for 0x80");
+                    break;
+                  }      
+                this.debug(read);
+                this.Dataframe.Dataframe7d = read;
                 let now = new Date();
                 new Date().getMilliseconds();
                 this.Dataframe.Time = `${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
-                if (data.length < 64) {
-                  this.debug("padding");
-                  data = data.padEnd(25, "0");
-                }
-                this.parse7D(this.hexToBytes(data));
+                this.parse7D(this.hexToBytes(read));
                 this.sendToEcu([0x80]); // trigger next frame
+                read='';
                 break;
               case 0xd1:
-                this.parseD1(data);
+                if (read.length < 26)
+                  {
+                    this.debug("expected 26 bytes for 0xd1");
+                    break;
+                  }      
+                this.parseD1(read);
+                read='';
                 break;
+               
               default: {
-                this.debug("got " + value[0]);
+                this.debug(read);
+                read='';
               }
             }
           }
