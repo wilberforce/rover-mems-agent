@@ -308,9 +308,9 @@ export default {
       });
       console.log(this.port);
 
-      if ( 1 ) this.sendToEcu([0xd1]);
+      if ( 0 ) this.sendToEcu([0xd1]);
 
-      this.timer=setInterval(
+      if ( 0 ) this.timer=setInterval(
         () => {
           this.sendToEcu([0x7d]);
         },500
@@ -381,9 +381,19 @@ export default {
               
               case 0x75: {
                 //if ( first === 1 )
+               this.sendToEcu([ 0xF4]);
+               first++
+               this.debug('75 Stage 4 ');
+               read='';
+                start=null;
+                break;
+              }
+              
+              case 0xF4: {
+                //if ( first === 1 )
                this.sendToEcu([ 0xD0]);
                first++
-               this.debug('dO Stage 4 ');
+               this.debug('dO Stage 5 ');
                read='';
                 start=null;
                 break;
@@ -467,13 +477,64 @@ export default {
 
       this.debug("would send " + this.hex([send]));
       this.debug("1.9 ECU woke up - init stage 1")
-      this.sleep(5);
-			
+      await this.sleep(50);
+			this.debug('done sleep - send 7c')
       this.sendToEcu([send]);
     },
   },
 };
 </script>
+
+/*
+Connecting to MEMS 1.9 ECU
+Serial cable set to:
+9600,8n1,none
+had buffer data: got 0 bytes
+1.9 ECU woke up - init stage 1
+1.9 had buffer data: got 1 bytes
+00000000  7c                                                |||
+Connecting to MEMS 1.9 ECU
+Serial cable set to:
+9600,8n1,none
+had buffer data: got 0 bytes
+1.9 ECU woke up - init stage 1
+1.9 had buffer data: got 1 bytes
+00000000  7c                                                |||
+Connecting to MEMS 1.9 ECU
+Serial cable set to:
+9600,8n1,none
+had buffer data: got 0 bytes
+1.9 ECU woke up - init stage 1
+1.9 had buffer data: got 1 bytes
+00000000  7c                                                |||
+Connecting to MEMS 1.9 ECU
+Serial cable set to:
+9600,8n1,none
+had buffer data: got 0 bytes
+1.9 had buffer data: got 0 bytes
+Connecting to MEMS 1.9 ECU
+Serial cable set to:
+9600,8n1,none
+had buffer data: got 0 bytes
+1.9 ECU woke up - init stage 1
+1.9 ECU init stage 2
+Got CA
+Got 75
+Got F4 00
+Got D0 and ECU ID
+ECU ID:
+00000000  c7 00 05 cb                                       |....|
+Got data 80
+Got data 7D
+Got data 80
+Got data 7D
+Got data 80
+Got data 7D
+Got data 80
+Got data 7D
+Got data 80
+Got data
+*/
 
 <template>
   <span class="float-right">
@@ -559,6 +620,13 @@ export default {
       <div class="card-body">
         <h6 class="card-title">Ignition Advance Offset</h6>
         <h3 class="card-text">{{ Dataframe.IgnitionAdvanceOffset80 }}</h3>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Battery Voltage</h6>
+        <h3 class="card-text">{{ Dataframe.BatteryVoltage }}</h3>
       </div>
     </div>
   </div>
