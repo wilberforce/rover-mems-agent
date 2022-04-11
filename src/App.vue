@@ -116,12 +116,19 @@ export default {
           IACPosition: 0,
         },
 
-        Dataframe7d:
-          "7d201016ff92401bffff010179670cff51ffff3588840dff134015801a0029c02a",
-        Dataframe80:
-          "801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
+        //Dataframe7d:
+        //"7d201016ff92401bffff010179670cff51ffff3588840dff134015801a0029c02a",
+        //"7d201014ff924057ffff0100806400ff64ffff3080800eff16801b00220031c01f",
+        //"7d21400aff910057ffff0100716400005aff002e807b690022002200220022000100"
+        //Dataframe80:
+        //"801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
+        //"801c00006fff4fff64781b00000100002037877b055f05380ca5000000"
         //Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
         //Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
+        Dataframe7d:
+          "7d20100fff924047ffff0100796400ff6fffff35887f45ff134015801a0029c02a",
+        Dataframe80:
+          "801c03d66fff4fff32741b00000100002037877b00a7053807af100000",
       },
       parameters: [
         "EngineRPM",
@@ -186,6 +193,7 @@ export default {
     };
   },
   mounted: function () {
+    /*
     this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
     this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
     //this.parseD1("D141424E4D5030303399000303");
@@ -193,8 +201,19 @@ export default {
     this.parseD1(
       "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
     );
+    */
+    this.parseD0("d038000305");
   },
   methods: {
+    parseD0(data) {
+      let bytes = this.hexToBytes(data);
+      var v = new DataView(bytes);
+      this.ECUSerial = v.getUint32(9).toString();
+      this.ECUID = String.fromCharCode.apply(
+        null,
+        new Uint8Array(bytes.slice(1, 9))
+      );
+    },
     parseD1(data) {
       // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630 1.9 response longer...
       // _ KLH3V005 ___ KLH3V005 ___ KLH3V0
@@ -213,39 +232,40 @@ export default {
         // len is 33 mems 1.9
         this.debug(`expected len 32 for 0x7d got ${len}`);
       } else {
+        let offset = 1;
         let v7d = {
-          IgnitionSwitch: v.getUint8(0x01) > 0,
-          ThrottleAngle: (v.getUint8(0x02) * 6.0) / 10.0,
-          Uk7d03: v.getUint8(0x03),
-          AirFuelRatio: v.getUint8(0x04) / 10.0,
-          DTC2: v.getUint8(0x05),
-          LambdaVoltage: v.getUint8(0x06) * 5,
-          LambdaFrequency: v.getUint8(0x07),
-          LambdaDutycycle: v.getUint8(0x08),
-          LambdaStatus: v.getUint8(0x09),
-          ClosedLoop: v.getUint8(0x0a),
-          LongTermFuelTrim: v.getInt8(0x0b),
-          ShortTermFuelTrim: v.getInt8(0x0c),
-          //FuelTrimCorrection: v.getInt8(0x),
-          CarbonCanisterPurgeValve: v.getUint8(0x0d),
-          DTC3: v.getUint8(0x0e),
-          IdleBasePosition: v.getUint8(0x0f),
-          Uk7d10: v.getUint8(0x10),
-          DTC4: v.getUint8(0x11),
-          IgnitionAdvanceOffset7d: v.getUint8(0x12) - 48,
-          IdleSpeedOffset: v.getUint8(0x13),
-          Uk7d14: v.getUint8(0x14),
-          Uk7d15: v.getUint8(0x15),
-          DTC5: v.getUint8(0x16),
-          Uk7d17: v.getUint8(0x17),
-          Uk7d18: v.getUint8(0x18),
-          Uk7d19: v.getUint8(0x19),
-          Uk7d1a: v.getUint8(0x1a),
-          Uk7d1b: v.getUint8(0x1b),
-          Uk7d1c: v.getUint8(0x1c),
-          Uk7d1d: v.getUint8(0x1d),
-          Uk7d1e: v.getUint8(0x1e),
-          JackCount: v.getUint8(0x1f),
+          IgnitionSwitch: v.getUint8(0x01 + offset) > 0,
+          ThrottleAngle: (v.getUint8(0x02 + offset) * 6.0) / 10.0,
+          Uk7d03: v.getUint8(0x03 + offset),
+          AirFuelRatio: v.getUint8(0x04 + offset) / 10.0,
+          DTC2: v.getUint8(0x05 + offset),
+          LambdaVoltage: v.getUint8(0x06 + offset) * 5,
+          LambdaFrequency: v.getUint8(0x07 + offset),
+          LambdaDutycycle: v.getUint8(0x08 + offset),
+          LambdaStatus: v.getUint8(0x09 + offset),
+          ClosedLoop: v.getUint8(0x0a + offset),
+          LongTermFuelTrim: v.getInt8(0x0b + offset),
+          ShortTermFuelTrim: v.getInt8(0x0c + offset),
+          //FuelTrimCorrection: v.getInt8(0x+offset),
+          CarbonCanisterPurgeValve: v.getUint8(0x0d + offset),
+          DTC3: v.getUint8(0x0e + offset),
+          IdleBasePosition: v.getUint8(0x0f + offset),
+          Uk7d10: v.getUint8(0x10 + offset),
+          DTC4: v.getUint8(0x11 + offset),
+          IgnitionAdvanceOffset7d: v.getUint8(0x12 + offset) - 48,
+          IdleSpeedOffset: v.getUint8(0x13 + offset),
+          Uk7d14: v.getUint8(0x14 + offset),
+          Uk7d15: v.getUint8(0x15 + offset),
+          DTC5: v.getUint8(0x16 + offset),
+          Uk7d17: v.getUint8(0x17 + offset),
+          Uk7d18: v.getUint8(0x18 + offset),
+          Uk7d19: v.getUint8(0x19 + offset),
+          Uk7d1a: v.getUint8(0x1a + offset),
+          Uk7d1b: v.getUint8(0x1b + offset),
+          Uk7d1c: v.getUint8(0x1c + offset),
+          Uk7d1d: v.getUint8(0x1d + offset),
+          Uk7d1e: v.getUint8(0x1e + offset),
+          JackCount: v.getUint8(0x1f + offset),
           //Uk7d20: v.getUint8(0x20), Mems 1.9
         };
         Object.assign(this.Dataframe, v7d);
@@ -253,36 +273,40 @@ export default {
     },
     parse80(data: ArrayBuffer) {
       var v = new DataView(data);
+      let type = v.getUint8(0);
       let len = v.getUint8(1);
+
       if (len !== 28) {
         this.debug(" expected len 28 for 0x80");
       } else {
+        //"80 1c 00 00 6f ff 4f ff 64 78 1b00000100002037877b055f05380ca5000000"
+        let offset = 1;
         let v80 = {
-          EngineRPM: v.getInt16(0x02),
-          CoolantTemp: v.getUint8(0x03) - 55.0,
-          AmbientTemp: v.getUint8(0x04) - 55.0,
-          IntakeAirTemp: v.getUint8(0x05) - 55.0,
-          FuelTemp: v.getUint8(0x06) - 55.0,
-          ManifoldAbsolutePressure: v.getUint8(0x07),
-          BatteryVoltage: v.getUint8(0x08) / 10.0,
-          ThrottlePotSensor: v.getUint8(0x09) * 0.02,
-          ThrottlePosition: v.getUint8(0x09) * 0.02, // ?
-          IdleSwitch: v.getUint8(0x0a),
-          AirconSwitch: v.getUint8(0x0b), 
-          ParkNeutralSwitch: v.getUint8(0x0c),
-          DTC0: v.getUint8(0x0d),
-          DTC1: v.getUint8(0x0e),
+          EngineRPM: v.getInt16(0x01 + offset),
+          CoolantTemp: v.getUint8(0x03 + offset) - 55.0,
+          AmbientTemp: v.getUint8(0x04 + offset) - 55.0,
+          IntakeAirTemp: v.getUint8(0x05 + offset) - 55.0,
+          FuelTemp: v.getUint8(0x06 + offset) - 55.0,
+          ManifoldAbsolutePressure: v.getUint8(0x07 + offset),
+          BatteryVoltage: v.getUint8(0x08 + offset) / 10.0,
+          ThrottlePotSensor: v.getUint8(0x09 + offset) * 0.02,
+          ThrottlePosition: v.getUint8(0x09 + offset) * 0.02, // ?
+          IdleSwitch: v.getUint8(0x0a + offset),
+          AirconSwitch: v.getUint8(0x0b + offset),
+          ParkNeutralSwitch: v.getUint8(0x0c + offset),
+          DTC0: v.getUint8(0x0d + offset),
+          DTC1: v.getUint8(0x0e + offset),
           IdleSetPoint: v.getUint8(0x0f) * 6.1,
-          IdleHot: v.getUint8(0x10),
-          Uk8011: v.getUint8(0x11),
-          IACPosition: v.getUint8(0x12),
-          IdleSpeedDeviation: v.getInt16(0x13),
-          IgnitionAdvanceOffset80: v.getInt8(0x15),
-          IgnitionAdvance: v.getInt8(0x16) / 2.0 - 24.0,
-          CoilTime: v.getUint16(0x17) * 0.0002,
-          CrankshaftPositionSensor: v.getUint8(0x19),
-          Uk801a: v.getUint8(0x1a),
-          Uk801b: v.getUint8(0x1b),
+          IdleHot: v.getUint8(0x10 + offset),
+          Uk8011: v.getUint8(0x11 + offset),
+          IACPosition: v.getUint8(0x12 + offset),
+          IdleSpeedDeviation: v.getInt16(0x13 + offset),
+          IgnitionAdvanceOffset80: v.getInt8(0x15 + offset),
+          IgnitionAdvance: v.getInt8(0x16 + offset) / 2.0 - 24.0,
+          CoilTime: v.getUint16(0x17 + offset) * 0.0002,
+          CrankshaftPositionSensor: v.getUint8(0x19 + offset),
+          Uk801a: v.getUint8(0x1a + offset),
+          Uk801b: v.getUint8(0x1b + offset),
         };
         Object.assign(this.Dataframe, v80);
       }
@@ -449,11 +473,13 @@ export default {
                 }
 
                 this.ser.buffer = this.ser.buffer.substring(2);
-                this.Dataframe.Dataframe80 = this.ser.buffer;
+                this.Dataframe.Dataframe80 = this.ser.buffer; // Patch size for https://analysis.memsfcr.co.uk/
+                let Mems1_6_7b =
+                  "7d214" + this.Dataframe.Dataframe7d.substring(4, 66);
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
-                  Dataframe7d: this.Dataframe.Dataframe7d.substring(0, 66),
+                  Dataframe7d: Mems1_6_7b,
                 });
                 this.parse80(this.hexToBytes(this.ser.buffer));
                 //this.sendToEcu([0x7d]); // trigger next frame
@@ -519,15 +545,33 @@ export default {
                 //this.debug(                    `got (${this.ser.buffer.length}) bytes for 0x7d`);
 
                 this.Dataframe.Dataframe7d = this.ser.buffer;
-                let now = new Date();
-                new Date().getMilliseconds();
-                this.Dataframe.Time = `${now.toLocaleTimeString()}.${now.getMilliseconds()}`;
+                let ms = new Date()
+                  .getMilliseconds()
+                  .toString(10)
+                  .padStart(3, "0");
+                this.Dataframe.Time = `${now.toLocaleTimeString()}.${ms}`;
                 this.parse7D(this.hexToBytes(this.ser.buffer));
                 this.sendToEcu([0x80]); // trigger next frame
                 this.ser.buffer = "";
                 start = null;
                 break;
+              case 0xd0:
+                //
+                if (this.ser.buffer.length < 4) {
+                  this.debug(
+                    `expected 64 bytes for 0xd0, got ${this.ser.buffer.length}`
+                  );
+                  break;
+                }
+                this.debug(`0xd0 << ${this.ser.buffer.length}`);
+                this.ser.buffer = this.ser.buffer.substring(2);
+                this.parseD0(this.ser.buffer);
+                this.ser.buffer = "";
+                start = null;
+                break;
+
               case 0xd1:
+                // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630
                 if (this.ser.buffer.length < 64) {
                   this.debug(
                     `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
@@ -794,7 +838,13 @@ Got data 7D Got data 80 Got data */
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0xd1])"
     >
-      ECU ID
+      ECU ID/SER
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0xd0])"
+    >
+      ECU SER
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
@@ -804,66 +854,109 @@ Got data 7D Got data 80 Got data */
     </button>
 
     <br />
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x1d])"
-    >
-      Fan On
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x0d])"
-    >
-      Fan OFF
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x91])"
-    >
-      Idle +
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x92])"
-    >
-      Idle -
-    </button>
 
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x7b])"
-    >
-      Fuel Trim +
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x7a])"
-    >
-      Fuel Trim -
-    </button>
+    <div class="btn-group mr-2" role="group">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x0d])"
+      >
+        Off
+      </button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0">Fan 1</label></span
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x1d])"
+      >
+        On
+      </button>
+    </div>
 
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x93])"
-    >
-      Ign Trim +
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0x94])"
-    >
-      Ign Trim -
-    </button>
+    <div class="btn-group mr-2" role="group">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x92])"
+      >
+        -
+      </button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >Idle Speed Δ
+          <span class="ml-1 badge badge-dark">{{
+            Dataframe.IdleSpeedOffset
+          }}</span></label
+        ></span
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x91])"
+      >
+        +
+      </button>
+    </div>
+
+    <div class="btn-group mr-2" role="group">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x7b])"
+      >
+        -
+      </button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >Long Term Fuel Trim
+          <span class="ml-1 badge badge-dark">{{
+            Dataframe.LongTermFuelTrim
+          }}</span></label
+        ></span
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x7a])"
+      >
+        +
+      </button>
+    </div>
+
+    <div class="btn-group mr-2" role="group">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x93])"
+      >
+        -
+      </button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >Ignition Advance Δ
+          <span class="ml-1 badge badge-dark">{{
+            Dataframe.IgnitionAdvanceOffset80
+          }}</span></label
+        ></span
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x94])"
+      >
+        +
+      </button>
+    </div>
   </div>
-  <nr></nr>
+  <pre>{{ debug_log.join("\n") }}</pre>
 
   <div class="card-columns mt-4">
     <div class="card" v-for="param in parameters" v-bind:key="param">
       <div class="card-body">
         {{ param }}
-        <span class="badge badge-light float-right">{{
-          Dataframe[param]
-        }}</span>
+        <span class="badge badge-dark float-right">{{ Dataframe[param] }}</span>
       </div>
     </div>
   </div>
