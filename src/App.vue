@@ -258,6 +258,20 @@ export default {
       await new Promise((resolve) => setTimeout(resolve, ms));
     },
 
+    async wait(ms) {
+      const start = performance.now();
+      ms++;
+     while(performance.now() - start < ms) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        let delta=performance.now() - start;
+        if ( ms - delta < 10) {
+           while(performance.now() - start < ms) {}
+           return;
+        }
+     }
+     //console.log({ms:ms,actual:performance.now() - start});
+    },
+
     async sendToEcu(bytes) {
       //this.debug(">> " + this.hex(bytes), " ");
       let writer = this.ser.port.writable.getWriter();
@@ -366,22 +380,20 @@ export default {
                 start = null;
                 break;
               case 0x00: {
-                this.debug(`stage 0 <<${this.ser.buffer} wait...`);
+                this.debug("Got 0x00");
                 this.ser.buffer = "";
-                start=null;
-                break
               }
 
               case 0x55: {
-                this.debug(`stage 1 <<${this.ser.buffer} >> ca`);
-// expect 0x55, 0x76, 0x83                
+                let send = start ^ 0xff;
+
                 this.debug(
-                  `1.9 ECU woke up - init stage 1, ${this.ser.buffer} ${start.toString(16)}`
+                  `1.9 ECU woke up - init stage 1, ${this.ser.buffer} ${send.toString(16)}`
                 );
-                await this.sleep(2000);
+                await this.sleep(100);
                 this.sendToEcu([0xca]);
 
-                this.debug(`stage 1 <<${this.ser.buffer} >> ca`);
+                this.debug("Got 0x55! stage 1");
                 this.ser.buffer = "";
                 start = null;
                 break;
@@ -390,31 +402,23 @@ export default {
               case 0xca: {
                 this.sendToEcu([0x75]);
 
-                this.debug(`Stage 2 <<${this.ser.buffer} >> 75`);
+                this.debug(`75 Stage 2 ${this.ser.buffer}`);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
 
               case 0x75: {
-                this.sendToEcu([0xf4]);
-                this.debug(`Stage 3 <<${this.ser.buffer} >>f4`);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-
-              case 0xf4: {
                 this.sendToEcu([0xd0]);
-                this.debug(`Stage 4 <<${this.ser.buffer} >> d0`);
+
+                this.debug(`F4 Stage 3 - ${this.ser.buffer}`);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
 
               case 0xd0: {
-                this.debug(`Stage 5 << ${this.ser.buffer} wait`);
-                //this.sendToEcu([0x7d]);
+                this.debug(`d0 Stage 4 ${this.ser.buffer}`);
                 this.debug(read);
                 read = "";
                 start = null;
@@ -478,29 +482,41 @@ export default {
       await this.ser.port.setSignals({ break: false });
 
       this.debug("sleeping for 2 seconds to clear the line");
-      await this.sleep(2000);
-      let start = new Date();
+      await this.wait(2000);
+      
       let times = [];
       await this.ser.port.setSignals({ break: true });
 
       let i = 0;
 
       ecuAddress = (ecuAddress << 1) | 1;
-let sleepMs=200;
+
       let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
-      sleepMs = 203;
+      let sleepMs = 199;
+      let b=[];
+      /*
       start = performance.now();
       let timer = setInterval(() => {
         this.ser.port.setSignals({ break: !bits[i] });
         times.push(performance.now() - start);
-        this.debug(bits[i]);
         i = i + 1;
         if (i === 10) clearInterval(timer);
       }, sleepMs);
-      await this.sleep(2200);
-      
+      console.log(times);
+      */
+      let start = performance.now()
+      let last=0;
+      for (let i = 0; i < 10; i++) {
+        await this.ser.port.setSignals({ break: !bits[i] });
+        let now=performance.now();
+        times.push(now- start);
+        start=now;
+        //b.push(bits[i]);
+        await this.wait(sleepMs);
+      }
       console.log(times);
       this.debug("continuing with normal init");
+
     },
   },
 };
