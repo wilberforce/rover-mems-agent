@@ -170,7 +170,7 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len < 32) {
+      if (len < 33) {
         // len is 33
         this.debug(`expected len 32 for 0x7d got ${len}`);
       } else {
@@ -205,8 +205,8 @@ export default {
           Uk7d1b: v.getUint8(0x1b),
           Uk7d1c: v.getUint8(0x1c),
           Uk7d1d: v.getUint8(0x1d),
-          //Uk7d1e: v.getUint8(0x1e),
-          //JackCount: v.getUint8(0x1f),
+          Uk7d1e: v.getUint8(0x1e),
+          JackCount: v.getUint8(0x1f),
         };
         Object.assign(this.Dataframe, v7d);
       }
@@ -363,64 +363,70 @@ export default {
               case 0x80:
                 if (this.ser.buffer.length < 56) {
                   this.debug(
-                    `expected 56 (${this.ser.buffe.length}) bytes for 0x80`
+                    `expected 56 (${this.ser.buffer.length}) bytes for 0x80`
                   );
                   break;
                 }
+                debugger;
                 this.ser.buffer = this.ser.buffer.substring(2);
-                this.Dataframe.Dataframe80 = read;
+                this.Dataframe.Dataframe80 = this.ser.buffer;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
                   Dataframe7d: this.Dataframe.Dataframe7d,
                 });
-                this.parse80(this.hexToBytes(read));
+                this.parse80(this.hexToBytes(this.ser.buffer));
                 //this.sendToEcu([0x7d]); // trigger next frame
                 this.ser.buffer = "";
                 start = null;
                 break;
               case 0x00: {
-                this.debug("Got 0x00");
+                this.debug(`<< ${this.ser.buffer}`);
                 this.ser.buffer = "";
+                start=null;
+                break;
               }
 
               case 0x55: {
-                let send = start ^ 0xff;
+                //let send = start ^ 0xff;
 
                 this.debug(
-                  `1.9 ECU woke up - init stage 1, ${this.ser.buffer} ${send.toString(16)}`
+                  `1.9 ECU woke up - init stage 1, <<${this.ser.buffer} >> ca`
                 );
-                await this.sleep(100);
                 this.sendToEcu([0xca]);
-
-                this.debug("Got 0x55! stage 1");
+                await this.sleep(100);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
 
               case 0xca: {
+                this.debug(`Stage 2 << ${this.ser.buffer} >> 75`);
                 this.sendToEcu([0x75]);
 
-                this.debug(`75 Stage 2 ${this.ser.buffer}`);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
 
               case 0x75: {
-                this.sendToEcu([0xd0]);
-
-                this.debug(`F4 Stage 3 - ${this.ser.buffer}`);
+                this.debug(`Stage 3 << ${this.ser.buffer} >> F4`);
+                this.sendToEcu([0xF4]);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
-
+              case 0xf4: {
+                this.debug(`Stage 4 ${this.ser.buffer}`);
+                this.sendToEcu([0xd0]);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
               case 0xd0: {
-                this.debug(`d0 Stage 4 ${this.ser.buffer}`);
-                this.debug(read);
-                read = "";
+                this.debug(`Stage 5 ${this.ser.buffer}`);
+                this.debug(this.ser.buffer);
+                this.ser.buffer = "";
                 start = null;
                 break;
               }
@@ -442,15 +448,15 @@ export default {
                 start = null;
                 break;
               case 0xd1:
-                if (this.ser.buffer.length < 60) {
+                if (this.ser.buffer.length < 64) {
                   this.debug(
-                    `expected 60 bytes for 0xd1, got ${this.ser.buffer.length}`
+                    `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
                   );
                   break;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
                 this.parseD1(this.ser.buffer);
-                read = "";
+                this.ser.buffer = "";
                 start = null;
                 break;
 
@@ -479,20 +485,25 @@ export default {
       this.debug(
         `Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`
       );
+
+      //this.sendToEcu([0xca]);
+     // this.sendToEcu([0x055]);
+
       await this.ser.port.setSignals({ break: false });
 
-      this.debug("sleeping for 2 seconds to clear the line");
+      this.debug("sleeping for 2 seconds to clear the line...");
       await this.wait(2000);
-      
+   let sleepMs = 200;
+  if ( 1 ) {
       let times = [];
-      await this.ser.port.setSignals({ break: true });
+//      await this.ser.port.setSignals({ break: true });
 
       let i = 0;
 
       ecuAddress = (ecuAddress << 1) | 1;
 
       let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
-      let sleepMs = 199;
+      let sleepMs = 195;
       let b=[];
       /*
       start = performance.now();
@@ -515,14 +526,47 @@ export default {
         await this.wait(sleepMs);
       }
       console.log(times);
+      console.log(b);
+  }
+if ( 1)
+{
+  await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs);
+await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs);
+await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs*2);
+await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs);
+await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs);
+await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs*4);
+}
+
+      this.debug("sent");
+
+
+      await this.sleep(100);
+
       this.debug("continuing with normal init");
+      
+      // expectiNg 0x55, 0x76, 0x83
+      //this.sendToEcu([0x7c]);
+      //Expect 0x7c, 0xE9
 
     },
   },
 };
 </script>
 
-/* Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had buffer
+/* 
+break 1
+break 0
+break 1
+break 1
+break 0
+break 1
+break 0
+break 0
+break 0
+break 0
+
+Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had buffer
 data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data: got 1
 bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to:
 9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9
