@@ -10,21 +10,6 @@ export default {
       },
       ECUID: "",
       ECUSerial: "",
-      MemsData2: [
-          {
-            Time: "12:35:55.186",
-            Dataframe7d:
-              "7d201010ff92401cffff0100796400ff6fffff35887aa1ff134015801a0029c02a",
-            Dataframe80:
-              "801c00006fff4fff64781b00000100002037877b055f05380ca5000000",
-          },
-          {
-            Time: "12:35:55.729",
-            Dataframe7d:
-              "7d201010ff92401cffff0100796400ff6fffff35887aa1ff134015801a0029c02a",
-            Dataframe80:
-              "801c00006fff4fff64781b00000100002037877b055f05380ca5000000",
-          },
       log: {
         Name: "run.fcr",
         Count: 2,
@@ -32,8 +17,7 @@ export default {
         Summary: "Test run",
         ECUID: "",
         ECUSerial: "",
-        MemsData: []
-        ],
+        MemsData: [],
       },
       Dataframe: {
         Time: "00:00:00.000",
@@ -131,29 +115,84 @@ export default {
           CoilFault: false,
           IACPosition: 0,
         },
-        //Dataframe80:          "801c000085ff4fff638e23001001000000208b60039d003808c1000000",
-        //Dataframe7d:          "7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
 
         Dataframe7d:
-          //"7d201024ff924027ffff0101796200ff69ffff358883a7ff134015801a0029c02a",
-          //"7d201012ff92006effff0100996400ff3affff30807c63ff19401ec0264034c008",
-          "7d0000000000000000000000000000000000000000000000000000000000000000",
+          "7d201016ff92401bffff010179670cff51ffff3588840dff134015801a0029c02a",
         Dataframe80:
-          //"801c089f74ff51ff3983320800010000203787870379055c05f8100000",
-          "8000000000000000000000000000000000000000000000000000000000",
+          "801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
+        //Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
+        //Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
       },
+      parameters: [
+        "EngineRPM",
+        "CoolantTemp",
+        "AmbientTemp",
+        "IntakeAirTemp",
+        "FuelTemp",
+        "ManifoldAbsolutePressure",
+        "BatteryVoltage",
+        "ThrottlePotSensor",
+        "ThrottlePosition",
+        "IdleSwitch",
+        "AirconSwitch",
+        "ParkNeutralSwitch",
+        "DTC0",
+        "DTC1",
+        "IdleSetPoint",
+        "IdleHot",
+        "Uk8011",
+        "IACPosition",
+        "IdleSpeedDeviation",
+        "IgnitionAdvanceOffset80",
+        "IgnitionAdvance",
+        "CoilTime",
+        "CrankshaftPositionSensor",
+        "Uk801a",
+        "Uk801b",
+        "IgnitionSwitch",
+        "ThrottleAngle",
+        "Uk7d03",
+        "AirFuelRatio",
+        "DTC2",
+        "LambdaVoltage",
+        "LambdaFrequency",
+        "LambdaDutycycle",
+        "LambdaStatus",
+        "ClosedLoop",
+        "LongTermFuelTrim",
+        "ShortTermFuelTrim",
+        "FuelTrimCorrection",
+        "CarbonCanisterPurgeValve",
+        "DTC3",
+        "IdleBasePosition",
+        "Uk7d10",
+        "DTC4",
+        "IgnitionAdvanceOffset7d",
+        "IdleSpeedOffset",
+        "Uk7d14",
+        "Uk7d15",
+        "DTC5",
+        "Uk7d17",
+        "Uk7d18",
+        "Uk7d19",
+        "Uk7d1a",
+        "Uk7d1b",
+        "Uk7d1c",
+        "Uk7d1d",
+        "Uk7d1e",
+        "JackCount",
+      ],
+      debug_log: [],
     };
   },
   mounted: function () {
-    /*
     this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
     this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
-    this.parseD1("D141424E4D5030303399000303");
+    //this.parseD1("D141424E4D5030303399000303");
 
     this.parseD1(
       "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
     );
-     */
   },
   methods: {
     parseD1(data) {
@@ -170,8 +209,8 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len < 33) {
-        // len is 33
+      if (len < 32) {
+        // len is 33 mems 1.9
         this.debug(`expected len 32 for 0x7d got ${len}`);
       } else {
         let v7d = {
@@ -207,6 +246,7 @@ export default {
           Uk7d1d: v.getUint8(0x1d),
           Uk7d1e: v.getUint8(0x1e),
           JackCount: v.getUint8(0x1f),
+          //Uk7d20: v.getUint8(0x20), Mems 1.9
         };
         Object.assign(this.Dataframe, v7d);
       }
@@ -228,7 +268,7 @@ export default {
           ThrottlePotSensor: v.getUint8(0x09) * 0.02,
           ThrottlePosition: v.getUint8(0x09) * 0.02, // ?
           IdleSwitch: v.getUint8(0x0a),
-          AirconSwitch: v.getUint8(0x0b), // ???
+          AirconSwitch: v.getUint8(0x0b), 
           ParkNeutralSwitch: v.getUint8(0x0c),
           DTC0: v.getUint8(0x0d),
           DTC1: v.getUint8(0x0e),
@@ -261,15 +301,15 @@ export default {
     async wait(ms) {
       const start = performance.now();
       ms++;
-     while(performance.now() - start < ms) {
+      while (performance.now() - start < ms) {
         await new Promise((resolve) => setTimeout(resolve, 1));
-        let delta=performance.now() - start;
-        if ( ms - delta < 10) {
-           while(performance.now() - start < ms) {}
-           return;
+        let delta = performance.now() - start;
+        if (ms - delta < 10) {
+          while (performance.now() - start < ms) {}
+          return;
         }
-     }
-     //console.log({ms:ms,actual:performance.now() - start});
+      }
+      //console.log({ms:ms,actual:performance.now() - start});
     },
 
     async sendToEcu(bytes) {
@@ -283,8 +323,7 @@ export default {
     },
     debug(msg) {
       console.log(msg);
-      let el = document.getElementById("console");
-      el.innerHTML = el.innerHTML + msg + "\n";
+      this.debug_log.push(msg);
     },
     download() {
       let log = this.log;
@@ -313,12 +352,12 @@ export default {
       this.ser.mode = 0;
     },
 
-async baud5() {
+    async baud5() {
       this.debug("set reader");
       while (this.ser.port.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
         this.debug("waiting on data...");
-let start;
+        let start;
         try {
           while (true) {
             const { value, done } = await this.ser.reader.read();
@@ -327,16 +366,14 @@ let start;
               this.debug("serial this.ser.reader done");
               return;
             }
-console.log(value)
-;            this.ser.buffer = this.ser.buffer.concat(
+            console.log(value);
+            this.ser.buffer = this.ser.buffer.concat(
               this.hex(Array.from(value))
             );
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
             //this.debug( `<< ${read}`);
             if (start === null) start = value[0];
             switch (start) {
-              
-
               default: {
                 //read=read.substring(2);
                 this.debug("default:", this.ser.buffer);
@@ -350,14 +387,14 @@ console.log(value)
         } catch (error) {
           this.debug(`error: ${error.message}`);
           console.log(error);
-          throw(error);
+          throw error;
         } finally {
           this.ser.reader.releaseLock();
           this.ser.reader = null;
           this.debug("released lock");
         }
       }
-},
+    },
     async openSerialPort() {
       //  let ports = await navigator.serial.getPorts();
       //    console.log(ports);
@@ -410,13 +447,13 @@ console.log(value)
                   //this.debug() `expected 56 (${this.ser.buffer.length}) bytes for 0x80`   );
                   break;
                 }
-                
+
                 this.ser.buffer = this.ser.buffer.substring(2);
                 this.Dataframe.Dataframe80 = this.ser.buffer;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
-                  Dataframe7d: this.Dataframe.Dataframe7d.substring(0,66),
+                  Dataframe7d: this.Dataframe.Dataframe7d.substring(0, 66),
                 });
                 this.parse80(this.hexToBytes(this.ser.buffer));
                 //this.sendToEcu([0x7d]); // trigger next frame
@@ -426,7 +463,7 @@ console.log(value)
               case 0x00: {
                 this.debug(`<< ${this.ser.buffer}`);
                 this.ser.buffer = "";
-                start=null;
+                start = null;
                 break;
               }
 
@@ -454,7 +491,7 @@ console.log(value)
 
               case 0x75: {
                 this.debug(`Stage 3 << ${this.ser.buffer} >> F4`);
-                this.sendToEcu([0xF4]);
+                this.sendToEcu([0xf4]);
                 this.ser.buffer = "";
                 start = null;
                 break;
@@ -480,7 +517,7 @@ console.log(value)
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
                 //this.debug(                    `got (${this.ser.buffer.length}) bytes for 0x7d`);
-                  
+
                 this.Dataframe.Dataframe7d = this.ser.buffer;
                 let now = new Date();
                 new Date().getMilliseconds();
@@ -524,7 +561,6 @@ console.log(value)
       }
     },
     async newInit() {
-
       this.ser.port = await navigator.serial.requestPort();
       console.log(this.ser.port.getInfo());
 
@@ -536,7 +572,6 @@ console.log(value)
         stopbits: 1,
         flowControl: "none",
       });
-      
 
       let ecuAddress = 0x16;
       this.debug(
@@ -544,31 +579,28 @@ console.log(value)
       );
 
       //this.sendToEcu([0xca]);
-     //this.sendToEcu([0x055]);
+      //this.sendToEcu([0x055]);
 
       await this.ser.port.setSignals({ break: false });
 
-setTimeout( ()=> this.baud5(),0);
+      setTimeout(() => this.baud5(), 0);
 
       this.debug("sleeping for 2 seconds to clear the line...");
       await this.wait(2000);
-   let sleepMs = 200;
-
-
-
-   
-  if ( 1 ) {
-      let times = [];
-//      await this.ser.port.setSignals({ break: true });
-
-      let i = 0;
-
-      ecuAddress = (ecuAddress << 1) | 1;
-
-      let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
       let sleepMs = 200;
-      let b=[];
-      /*
+
+      if (1) {
+        let times = [];
+        //      await this.ser.port.setSignals({ break: true });
+
+        let i = 0;
+
+        ecuAddress = (ecuAddress << 1) | 1;
+
+        let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
+        let sleepMs = 200;
+        let b = [];
+        /*
       start = performance.now();
       let timer = setInterval(() => {
         this.ser.port.setSignals({ break: !bits[i] });
@@ -578,28 +610,33 @@ setTimeout( ()=> this.baud5(),0);
       }, sleepMs);
       console.log(times);
       */
-      let start = performance.now()
-      let last=0;
-      for (let i = 0; i < 10; i++) {
-        await this.ser.port.setSignals({ break: !bits[i] });
-        let now=performance.now();
-        times.push(now- start);
-        start=now;
-        //b.push(bits[i]);
-        await this.wait(sleepMs);
+        let start = performance.now();
+        let last = 0;
+        for (let i = 0; i < 10; i++) {
+          await this.ser.port.setSignals({ break: !bits[i] });
+          let now = performance.now();
+          times.push(now - start);
+          start = now;
+          //b.push(bits[i]);
+          await this.wait(sleepMs);
+        }
+        console.log(times);
+        console.log(b);
       }
-      console.log(times);
-      console.log(b);
-  }
-if ( 0)
-{
-  await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs);
-await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs);
-await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs*2);
-await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs);
-await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs);
-await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs*4);
-}
+      if (0) {
+        await this.ser.port.setSignals({ break: true });
+        await this.wait(sleepMs);
+        await this.ser.port.setSignals({ break: false });
+        await this.wait(sleepMs);
+        await this.ser.port.setSignals({ break: true });
+        await this.wait(sleepMs * 2);
+        await this.ser.port.setSignals({ break: false });
+        await this.wait(sleepMs);
+        await this.ser.port.setSignals({ break: true });
+        await this.wait(sleepMs);
+        await this.ser.port.setSignals({ break: false });
+        await this.wait(sleepMs * 4);
+      }
 
       await this.sleep(100);
 
@@ -608,37 +645,25 @@ await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs*4);
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
       //Expect 0x7c, 0xE9
-
     },
   },
 };
 </script>
 
-/* 
-break 1
-break 0
-break 1
-break 1
-break 0
-break 1
-break 0
-break 0
-break 0
-break 0
-
-Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had buffer
-data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data: got 1
-bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to:
+/* break 1 break 0 break 1 break 1 break 0 break 1 break 0 break 0 break 0 break
+0 Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had buffer data:
+got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data: got 1 bytes
+00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none
+had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data:
+got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to:
 9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9
 had buffer data: got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial
-cable set to: 9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init
-stage 1 1.9 had buffer data: got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9
-ECU Serial cable set to: 9600,8n1,none had buffer data: got 0 bytes 1.9 had
-buffer data: got 0 bytes Connecting to MEMS 1.9 ECU Serial cable set to:
-9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9
-ECU init stage 2 Got CA Got 75 Got F4 00 Got D0 and ECU ID ECU ID: 00000000 c7
-00 05 cb |....| Got data 80 Got data 7D Got data 80 Got data 7D Got data 80 Got
-data 7D Got data 80 Got data 7D Got data 80 Got data */
+cable set to: 9600,8n1,none had buffer data: got 0 bytes 1.9 had buffer data:
+got 0 bytes Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had
+buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 ECU init stage 2 Got
+CA Got 75 Got F4 00 Got D0 and ECU ID ECU ID: 00000000 c7 00 05 cb |....| Got
+data 80 Got data 7D Got data 80 Got data 7D Got data 80 Got data 7D Got data 80
+Got data 7D Got data 80 Got data */
 
 <template>
   <span class="float-right">
@@ -736,15 +761,6 @@ data 7D Got data 80 Got data 7D Got data 80 Got data */
       </div>
     </div>
   </div>
-  <hr />
-  <label
-    ><span class="badge badge-light">{{ Dataframe.Dataframe7d.length }} {{ Dataframe.Dataframe7d }}</span></label
-  >
-  <label
-    ><span class="badge badge-light">{{ Dataframe.Dataframe80.length }} {{ Dataframe.Dataframe80 }}</span></label
-  >
-  <br />
-  
 
   <hr />
   <div>
@@ -839,7 +855,32 @@ data 7D Got data 80 Got data 7D Got data 80 Got data */
       Ign Trim -
     </button>
   </div>
+  <nr></nr>
 
-  <pre id="console"></pre>
+  <div class="card-columns mt-4">
+    <div class="card" v-for="param in parameters" v-bind:key="param">
+      <div class="card-body">
+        {{ param }}
+        <span class="badge badge-light float-right">{{
+          Dataframe[param]
+        }}</span>
+      </div>
+    </div>
+  </div>
+  <hr />
+
+  <label
+    ><span class="badge badge-light"
+      >{{ Dataframe.Dataframe7d.length }} {{ Dataframe.Dataframe7d }}</span
+    ></label
+  >
+  <label
+    ><span class="badge badge-light"
+      >{{ Dataframe.Dataframe80.length }} {{ Dataframe.Dataframe80 }}</span
+    ></label
+  >
+  <br />
+
+  <pre>{{ debug_log.join("\n") }}</pre>
 </template>
 <style lang="scss"></style>
