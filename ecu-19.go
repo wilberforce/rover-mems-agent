@@ -98,14 +98,20 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 		}
 
 		// clear leading zeros (from our wake up)
+
+		
 		for len(buffer) > 0 && buffer[0] == 0x00 {
+			fmt.Printf("Dropping 0x00\n")
 			buffer = buffer[1:]
 		}
 
 		if len(buffer) == 0 { continue }
-
+		
 		if slicesEqual(buffer, ecu19WokeResponse) {
-      fmt.Println("1.9 ECU woke up - init stage 1")
+      fmt.Println("1.9 ECU woke up - init stage 1!")
+
+	  fmt.Printf("RW buffer a data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
+	  fmt.Printf("RW ecu19WokeResponse data: got %d bytes \n%s", len(ecu19WokeResponse), hex.Dump(ecu19WokeResponse))
 
 	  
 			buffer = nil
@@ -118,7 +124,12 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 		}
 
     if slicesEqual(buffer, ecu19SpecificInitResponse) {
-      fmt.Println("1.9 ECU init stage 2")
+
+		fmt.Printf("RW buffer b data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
+		fmt.Printf("RW ecu19SpecificInitResponse data: got %d bytes \n%s", len(ecu19SpecificInitResponse), hex.Dump(ecu19SpecificInitResponse))		
+
+
+      fmt.Println("1.9 ECU init stage 2!")
 	  fmt.Printf("RW buffer data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
       buffer = nil
       ecu1xLoop(sp, true)
