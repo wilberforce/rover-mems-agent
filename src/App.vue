@@ -437,12 +437,12 @@ export default {
       });
       console.log(this.ser.port);
 
-      if (1) this.sendToEcu([0xd1]);
+      if (1) this.sendToEcu([0xd0]);
 
-      if (1)
+      if (0)
         this.timer = setInterval(() => {
           this.sendToEcu([0x7d]);
-        }, 500);
+        }, 2000);
 
       let read = "";
       let start = null;
@@ -530,7 +530,7 @@ export default {
                 break;
               }
               case 0xd0: {
-                this.debug(`Stage 5 ${this.ser.buffer}`);
+                this.debug(`Got ID ${this.ser.buffer}`);
                 this.debug(this.ser.buffer);
                 this.ser.buffer = "";
                 start = null;
@@ -576,6 +576,11 @@ export default {
                   this.debug(
                     `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
                   );
+                  if(this.ser.buffer.length==2) {
+                this.ser.buffer = "";
+                start = null;
+ // gone wrong - reset    
+                  }
                   break;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
@@ -836,7 +841,7 @@ Got data 7D Got data 80 Got data */
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xd1])"
+      @click="sendToEcu([0xd0])"
     >
       ECU ID/SER
     </button>
@@ -845,6 +850,12 @@ Got data 7D Got data 80 Got data */
       @click="sendToEcu([0xd0])"
     >
       ECU SER
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0xd1])"
+    >
+      ECU ID/VER
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
