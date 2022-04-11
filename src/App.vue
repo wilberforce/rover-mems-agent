@@ -188,6 +188,7 @@ export default {
         "Uk7d1d",
         "Uk7d1e",
         "JackCount",
+        "Uk7d20"
       ],
       debug_log: [],
     };
@@ -208,11 +209,7 @@ export default {
     parseD0(data) {
       let bytes = this.hexToBytes(data);
       var v = new DataView(bytes);
-      this.ECUSerial = v.getUint32(9).toString();
-      this.ECUID = String.fromCharCode.apply(
-        null,
-        new Uint8Array(bytes.slice(1, 9))
-      );
+      this.ECUSerial = v.getUint32(1).toString();
     },
     parseD1(data) {
       // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630 1.9 response longer...
@@ -228,9 +225,10 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len < 32) {
+      if (len < 33) {
         // len is 33 mems 1.9
-        this.debug(`expected len 32 for 0x7d got ${len}`);
+        this.debug(`expected len 33 for 0x7d got ${len}`);
+        return;
       } else {
         let offset = 1;
         let v7d = {
@@ -266,7 +264,7 @@ export default {
           Uk7d1d: v.getUint8(0x1d + offset),
           Uk7d1e: v.getUint8(0x1e + offset),
           JackCount: v.getUint8(0x1f + offset),
-          //Uk7d20: v.getUint8(0x20), Mems 1.9
+          Uk7d20: v.getUint8(0x20),// Mems 1.9
         };
         Object.assign(this.Dataframe, v7d);
       }
@@ -278,6 +276,7 @@ export default {
 
       if (len !== 28) {
         this.debug(" expected len 28 for 0x80");
+        return;
       } else {
         //"80 1c 00 00 6f ff 4f ff 64 78 1b00000100002037877b055f05380ca5000000"
         let offset = 1;
@@ -347,7 +346,7 @@ export default {
     },
     debug(msg) {
       console.log(msg);
-      this.debug_log.push(msg);
+      this.debug_log.unshift(msg);
     },
     download() {
       let log = this.log;
@@ -439,10 +438,10 @@ export default {
 
       if (1) this.sendToEcu([0xd0]);
 
-      if (0)
+      if (`1`)
         this.timer = setInterval(() => {
           this.sendToEcu([0x7d]);
-        }, 2000);
+        }, 1000);
 
       let read = "";
       let start = null;
@@ -467,11 +466,18 @@ export default {
             if (start === null) start = value[0];
             switch (start) {
               case 0x80:
-                if (this.ser.buffer.length < 56) {
-                  //this.debug() `expected 56 (${this.ser.buffer.length}) bytes for 0x80`   );
+                if (this.ser.buffer.length < 60) {
+                  //this.debug( `expected 60 (${this.ser.buffer.length}) bytes for 0x80`   );
                   break;
                 }
-
+                if (this.ser.buffer.length != 60) {
+this.ser.buffer = "";
+                start = null;
+                this.debug( `rejected << ${this.ser.buffer}`)
+                return;
+                }
+                //this.debug( `using (${this.ser.buffer.length}) bytes for 0x80`   );
+                  
                 this.ser.buffer = this.ser.buffer.substring(2);
                 this.Dataframe.Dataframe80 = this.ser.buffer; // Patch size for https://analysis.memsfcr.co.uk/
                 let Mems1_6_7b =
@@ -530,6 +536,7 @@ export default {
                 break;
               }
               case 0xd0: {
+                //d0d0c70005cb
                 this.debug(`Got ID ${this.ser.buffer}`);
                 this.debug(this.ser.buffer);
                 this.ser.buffer = "";
@@ -537,15 +544,22 @@ export default {
                 break;
               }
               case 0x7d:
-                if (this.ser.buffer.length < 66) {
+                if (this.ser.buffer.length < 70) {
                   //this.debug(  `expected 64 (${this.ser.buffer.length}) bytes for 0x7d` );
                   break;
+                }
+                if (this.ser.buffer.length != 70) {
+this.ser.buffer = "";
+                start = null;
+                this.debug( `rejected << ${this.ser.buffer}`)
+                return;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
                 //this.debug(                    `got (${this.ser.buffer.length}) bytes for 0x7d`);
 
                 this.Dataframe.Dataframe7d = this.ser.buffer;
-                let ms = new Date()
+                let now = new Date();
+                let ms = now
                   .getMilliseconds()
                   .toString(10)
                   .padStart(3, "0");
@@ -572,7 +586,7 @@ export default {
 
               case 0xd1:
                 // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630
-                if (this.ser.buffer.length < 64) {
+                if (this.ser.buffer.length < 70) {
                   this.debug(
                     `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
                   );
@@ -843,19 +857,13 @@ Got data 7D Got data 80 Got data */
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0xd0])"
     >
-      ECU ID/SER
-    </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xd0])"
-    >
       ECU SER
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0xd1])"
     >
-      ECU ID/VER
+      ECU ID/SER
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
@@ -915,7 +923,7 @@ Got data 7D Got data 80 Got data */
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x7b])"
+        @click="sendToEcu([0x7a])"
       >
         -
       </button>
@@ -930,7 +938,7 @@ Got data 7D Got data 80 Got data */
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x7a])"
+        @click="sendToEcu([0x7b])"
       >
         +
       </button>
@@ -940,7 +948,7 @@ Got data 7D Got data 80 Got data */
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x93])"
+        @click="sendToEcu([0x94])"
       >
         -
       </button>
@@ -955,7 +963,7 @@ Got data 7D Got data 80 Got data */
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x94])"
+        @click="sendToEcu([0x93])"
       >
         +
       </button>
