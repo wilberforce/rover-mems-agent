@@ -10,15 +10,7 @@ export default {
       },
       ECUID: "",
       ECUSerial: "",
-      log: {
-        Name: "run.fcr",
-        Count: 2,
-        Date: "0000-01-01T12:35:55.186Z",
-        Summary: "Test run",
-        ECUID: "",
-        ECUSerial: "",
-        MemsData: [],
-        MemsData2: [
+      MemsData2: [
           {
             Time: "12:35:55.186",
             Dataframe7d:
@@ -33,6 +25,14 @@ export default {
             Dataframe80:
               "801c00006fff4fff64781b00000100002037877b055f05380ca5000000",
           },
+      log: {
+        Name: "run.fcr",
+        Count: 2,
+        Date: "0000-01-01T12:35:55.186Z",
+        Summary: "Test run",
+        ECUID: "",
+        ECUSerial: "",
+        MemsData: []
         ],
       },
       Dataframe: {
@@ -313,6 +313,51 @@ export default {
       this.ser.mode = 0;
     },
 
+async baud5() {
+      this.debug("set reader");
+      while (this.ser.port.readable) {
+        this.ser.reader = this.ser.port.readable.getReader();
+        this.debug("waiting on data...");
+let start;
+        try {
+          while (true) {
+            const { value, done } = await this.ser.reader.read();
+
+            if (done) {
+              this.debug("serial this.ser.reader done");
+              return;
+            }
+console.log(value)
+;            this.ser.buffer = this.ser.buffer.concat(
+              this.hex(Array.from(value))
+            );
+            //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
+            //this.debug( `<< ${read}`);
+            if (start === null) start = value[0];
+            switch (start) {
+              
+
+              default: {
+                //read=read.substring(2);
+                this.debug("default:", this.ser.buffer);
+                this.debug(`<< ${this.ser.buffer}`);
+
+                start = null;
+                this.ser.buffer = "";
+              }
+            }
+          }
+        } catch (error) {
+          this.debug(`error: ${error.message}`);
+          console.log(error);
+          throw(error);
+        } finally {
+          this.ser.reader.releaseLock();
+          this.ser.reader = null;
+          this.debug("released lock");
+        }
+      }
+},
     async openSerialPort() {
       //  let ports = await navigator.serial.getPorts();
       //    console.log(ports);
@@ -331,9 +376,9 @@ export default {
       });
       console.log(this.ser.port);
 
-      if (0) this.sendToEcu([0xd1]);
+      if (1) this.sendToEcu([0xd1]);
 
-      if (0)
+      if (1)
         this.timer = setInterval(() => {
           this.sendToEcu([0x7d]);
         }, 500);
@@ -362,18 +407,16 @@ export default {
             switch (start) {
               case 0x80:
                 if (this.ser.buffer.length < 56) {
-                  this.debug(
-                    `expected 56 (${this.ser.buffer.length}) bytes for 0x80`
-                  );
+                  //this.debug() `expected 56 (${this.ser.buffer.length}) bytes for 0x80`   );
                   break;
                 }
-                debugger;
+                
                 this.ser.buffer = this.ser.buffer.substring(2);
                 this.Dataframe.Dataframe80 = this.ser.buffer;
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
-                  Dataframe7d: this.Dataframe.Dataframe7d,
+                  Dataframe7d: this.Dataframe.Dataframe7d.substring(0,66),
                 });
                 this.parse80(this.hexToBytes(this.ser.buffer));
                 //this.sendToEcu([0x7d]); // trigger next frame
@@ -431,13 +474,13 @@ export default {
                 break;
               }
               case 0x7d:
-                if (this.ser.buffer.length < 64) {
-                  this.debug(
-                    `expected 64 (${this.ser.buffer.length}) bytes for 0x7d`
-                  );
+                if (this.ser.buffer.length < 66) {
+                  //this.debug(  `expected 64 (${this.ser.buffer.length}) bytes for 0x7d` );
                   break;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
+                //this.debug(                    `got (${this.ser.buffer.length}) bytes for 0x7d`);
+                  
                 this.Dataframe.Dataframe7d = this.ser.buffer;
                 let now = new Date();
                 new Date().getMilliseconds();
@@ -481,19 +524,39 @@ export default {
       }
     },
     async newInit() {
+
+      this.ser.port = await navigator.serial.requestPort();
+      console.log(this.ser.port.getInfo());
+
+      await this.ser.port.open({
+        baudRate: 9600,
+        databits: 8,
+        bufferSize: 128,
+        parity: "none",
+        stopbits: 1,
+        flowControl: "none",
+      });
+      
+
       let ecuAddress = 0x16;
       this.debug(
         `Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`
       );
 
       //this.sendToEcu([0xca]);
-     // this.sendToEcu([0x055]);
+     //this.sendToEcu([0x055]);
 
       await this.ser.port.setSignals({ break: false });
+
+setTimeout( ()=> this.baud5(),0);
 
       this.debug("sleeping for 2 seconds to clear the line...");
       await this.wait(2000);
    let sleepMs = 200;
+
+
+
+   
   if ( 1 ) {
       let times = [];
 //      await this.ser.port.setSignals({ break: true });
@@ -503,7 +566,7 @@ export default {
       ecuAddress = (ecuAddress << 1) | 1;
 
       let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
-      let sleepMs = 195;
+      let sleepMs = 200;
       let b=[];
       /*
       start = performance.now();
@@ -528,7 +591,7 @@ export default {
       console.log(times);
       console.log(b);
   }
-if ( 1)
+if ( 0)
 {
   await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs);
 await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs);
@@ -538,13 +601,10 @@ await this.ser.port.setSignals({ break: true }); await this.wait(sleepMs);
 await this.ser.port.setSignals({ break: false }); await this.wait(sleepMs*4);
 }
 
-      this.debug("sent");
-
-
       await this.sleep(100);
 
       this.debug("continuing with normal init");
-      
+      //00000000  55 76 83
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
       //Expect 0x7c, 0xE9
@@ -678,16 +738,13 @@ data 7D Got data 80 Got data 7D Got data 80 Got data */
   </div>
   <hr />
   <label
-    ><span class="badge badge-light">{{ Dataframe.Dataframe7d }}</span></label
+    ><span class="badge badge-light">{{ Dataframe.Dataframe7d.length }} {{ Dataframe.Dataframe7d }}</span></label
   >
   <label
-    ><span class="badge badge-light">{{ Dataframe.Dataframe80 }}</span></label
+    ><span class="badge badge-light">{{ Dataframe.Dataframe80.length }} {{ Dataframe.Dataframe80 }}</span></label
   >
   <br />
-  <label
-    >last input:
-    <span class="badge badge-light">{{ this.ser.buffer }}</span></label
-  >
+  
 
   <hr />
   <div>
