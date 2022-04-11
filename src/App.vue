@@ -116,12 +116,12 @@ export default {
           IACPosition: 0,
         },
 
-        Dataframe7d:
-          "7d201016ff92401bffff010179670cff51ffff3588840dff134015801a0029c02a",
-        Dataframe80:
-          "801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
-        //Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        //Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
+        //Dataframe7d:
+         // "7d201016ff92401bffff010179670cff51ffff3588840dff134015801a0029c02a",
+        //Dataframe80:
+          //"801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
+        Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
+        Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
       },
       parameters: [
         "EngineRPM",
@@ -186,13 +186,14 @@ export default {
     };
   },
   mounted: function () {
-    this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
-    this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
+    //this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
+    //this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
     //this.parseD1("D141424E4D5030303399000303");
 
-    this.parseD1(
-      "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
-    );
+    //this.parseD1(
+      //"d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
+      // 3035c70005cb
+    //);
   },
   methods: {
     parseD1(data) {
@@ -413,12 +414,12 @@ export default {
       });
       console.log(this.ser.port);
 
-      if (1) this.sendToEcu([0xd1]);
+      if (1) this.sendToEcu([0xd0]);
 
-      if (1)
+      if (0)
         this.timer = setInterval(() => {
           this.sendToEcu([0x7d]);
-        }, 500);
+        }, 2000);
 
       let read = "";
       let start = null;
@@ -504,7 +505,7 @@ export default {
                 break;
               }
               case 0xd0: {
-                this.debug(`Stage 5 ${this.ser.buffer}`);
+                this.debug(`Got ID ${this.ser.buffer}`);
                 this.debug(this.ser.buffer);
                 this.ser.buffer = "";
                 start = null;
@@ -532,6 +533,11 @@ export default {
                   this.debug(
                     `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
                   );
+                  if(this.ser.buffer.length==2) {
+                this.ser.buffer = "";
+                start = null;
+ // gone wrong - reset    
+                  }
                   break;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
@@ -792,9 +798,15 @@ Got data 7D Got data 80 Got data */
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xd1])"
+      @click="sendToEcu([0xd0])"
     >
       ECU ID
+    </button>
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0xd1])"
+    >
+      ECU ID/VER
     </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
@@ -855,8 +867,7 @@ Got data 7D Got data 80 Got data */
       Ign Trim -
     </button>
   </div>
-  <nr></nr>
-
+  
   <div class="card-columns mt-4">
     <div class="card" v-for="param in parameters" v-bind:key="param">
       <div class="card-body">
