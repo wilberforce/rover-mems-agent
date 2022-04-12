@@ -44,8 +44,9 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 	fmt.Println("Serial cable set to:")
 	fmt.Println(mode)
 
+	fmt.Println( "Don't try the normal method first")
 	// try the normal method first
-	ecu1xLoop(sp, true)
+	//ecu1xLoop(sp, true)
 
   // clear the line
 	sp.SetBreak(false)
@@ -53,6 +54,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
   start := time.Now()
 
+  fmt.Printf("Time A: %s", time.Now());
   // start bit
 	sp.SetBreak(true)
 	fmt.Println("break 1")
@@ -77,13 +79,15 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
   // stop bit
 	sp.SetBreak(false)
 	fmt.Println("break 0")
+	fmt.Printf("Time B - before stop bit: %s", time.Now());
   sleepUntil(start, 200 + (8*200) + 200)
-
+  fmt.Printf("Time C - after stop bit: %s", time.Now());
 	buffer := make([]byte, 0)
 
 	readLoops := 0
 	readLoopsLimit := 200
 	for readLoops < readLoopsLimit {
+		//fmt.Printf("Time D - after stop bit: %s, %d", time.Now(), readLoops);
 		readLoops++
 		if readLoops > 1 {
 			time.Sleep(10 * time.Millisecond)
@@ -101,14 +105,16 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
 		
 		for len(buffer) > 0 && buffer[0] == 0x00 {
-			fmt.Printf("Dropping 0x00\n")
+			fmt.Printf("Time D - Dropping 0x00\n", time.Now());
+			fmt.Printf("")
 			buffer = buffer[1:]
 		}
 
 		if len(buffer) == 0 { continue }
-		
+		fmt.Printf("Time E\n", time.Now());
 		if slicesEqual(buffer, ecu19WokeResponse) {
       fmt.Println("1.9 ECU woke up - init stage 1!")
+	  fmt.Printf("Time F\n", time.Now());
 
 	  fmt.Printf("RW buffer a data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
 	  fmt.Printf("RW ecu19WokeResponse data: got %d bytes \n%s", len(ecu19WokeResponse), hex.Dump(ecu19WokeResponse))
@@ -123,8 +129,9 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 			continue
 		}
 
+		
     if slicesEqual(buffer, ecu19SpecificInitResponse) {
-
+		fmt.Printf("Time H\n", time.Now());
 		fmt.Printf("RW buffer b data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
 		fmt.Printf("RW ecu19SpecificInitResponse data: got %d bytes \n%s", len(ecu19SpecificInitResponse), hex.Dump(ecu19SpecificInitResponse))		
 
