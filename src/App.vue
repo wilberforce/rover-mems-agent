@@ -901,7 +901,8 @@ Got data 7D Got data 80 Got data */
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">
-          Lambda {{ Dataframe.ClosedLoop ? "Closed" : "Open" }}
+          Lambda {{ !Dataframe.ClosedLoop  ? "Closed" : "Open" }}
+          {{ Dataframe.ClosedLoop }}
         </h6>
         <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
       </div>
