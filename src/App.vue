@@ -1,4 +1,4 @@
-<script lang="ts">
+this.ser.port.open<script lang="ts">
 import imported_data from "./data/run-1649731232340.fcr.json";
 
 export default {
@@ -200,17 +200,7 @@ export default {
     };
   },
   mounted: function () {
-    this.dumpImportReadmemsHex();
-    /*
-    this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
-    this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
-
-    this.parseD1(
-      "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
-    );
-    
-     */
-    //this.parseD0("d038000305");
+    //this.dumpImportReadmemsHex();
   },
   methods: {
     simulateStart() {
@@ -707,14 +697,7 @@ export default {
       this.ser.port = await navigator.serial.requestPort();
       console.log(this.ser.port.getInfo());
 
-      await this.ser.port.open({
-        baudRate: 9600,
-        databits: 8,
-        bufferSize: 128,
-        parity: "none",
-        stopbits: 1,
-        flowControl: "none",
-      });
+      await this.ser.port.open({baudRate: 9600,databits: 8,bufferSize: 128,parity: "none",stopbits: 1,flowControl: "none",});
 
       let ecuAddress = 0x16;
       this.debug(
@@ -724,15 +707,18 @@ export default {
       //this.sendToEcu([0xca]);
       //this.sendToEcu([0x055]);
 
-      await this.ser.port.setSignals({ break: false });
+      
 
-      setTimeout(() => this.baud5(), 0);
+      //setTimeout(() => this.baud5(), 0);
 
-      this.debug("sleeping for 2 seconds to clear the line...");
-      await this.wait(2000);
+    
       let sleepMs = 200;
 
-      if (1) {
+      if (0) {
+
+          this.debug("sleeping for 2 seconds to clear the line...");
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(2000);
         let times = [];
         //      await this.ser.port.setSignals({ break: true });
 
@@ -766,7 +752,23 @@ export default {
         console.log(times);
         console.log(b);
       }
-      if (0) {
+      if (1) {
+
+          this.debug("5 baud ");
+          // The break signal state (all low, no stop bit) until released. 
+
+/*
+W0 300 - Time before the tester starts to transmit the address byte 
+
+W1 60 300 Time from end of the address byte to start of synchronisation pattern
+W2 5 20 Time from end of the synchronisation pattern to the start of key byte 1
+W3 0 20 Time between key byte 1 and key byte 2
+W4 25 50 Time between key byte 2 (from the ECU) and its inversion from the tester. Also the time
+from the inverted key byte 2 from the tester and the inverted address from the ECU
+*/
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(500);
+
         await this.ser.port.setSignals({ break: true });
         await this.wait(sleepMs);
         await this.ser.port.setSignals({ break: false });
@@ -781,9 +783,13 @@ export default {
         await this.wait(sleepMs * 4);
       }
 
-      await this.sleep(100);
+       await this.ser.port.setSignals({ break: false });
+      await this.wait(50);
+      await this.ser.port.close();
+      await this.ser.port.open({baudRate: 9600,databits: 8,bufferSize: 128,parity: "none",stopbits: 1,flowControl: "none",});
+      this.baud5();
+      
 
-      this.debug("continuing with normal init");
       //00000000  55 76 83
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
