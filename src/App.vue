@@ -1,8 +1,14 @@
 <script lang="ts">
+import imported_data from "./data/run-1649731232340.fcr.json";
+
 export default {
   name: "app",
   data() {
     return {
+      replay: {
+        timer: null,
+        step: 0,
+      },
       ser: {
         mode: 0,
         port: null,
@@ -188,24 +194,100 @@ export default {
         "Uk7d1d",
         "Uk7d1e",
         "JackCount",
-        "Uk7d20"
+        "Uk7d20",
       ],
       debug_log: [],
     };
   },
   mounted: function () {
+    this.dumpImportReadmemsHex();
     /*
     this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
     this.parse7D(this.hexToBytes(this.Dataframe.Dataframe7d));
-    //this.parseD1("D141424E4D5030303399000303");
 
     this.parseD1(
       "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
     );
-    */
-    this.parseD0("d038000305");
+    
+     */
+    //this.parseD0("d038000305");
   },
   methods: {
+    simulateStart() {
+      // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
+      this.replay.timer = null;
+      this.replay.step = 0;
+      this.replay.timer = setInterval(() => this.simulate(), 50);
+      this.simulate();
+      this.ECUID = imported_data.Name;
+      // Slider for speed - realtime option
+    },
+    simulate() {
+      if (imported_data.MemsData.length >= this.replay.step) {
+        let data = imported_data.MemsData[this.replay.step];
+        if ( data ) {
+        this.Dataframe.Time = data.Time;
+        // Patch 1.6 len to 1.9
+        let x7d =
+          "7d21" + this.Dataframe.Dataframe7d.substring(4);//.padEnd(66, "9");
+
+        this.parse7D(this.hexToBytes(x7d));
+        this.parse80(this.hexToBytes(data.Dataframe80));
+        this.replay.step++;
+        } else {
+          this.simulateStop();
+        }
+      }
+    },
+    simulateStop() {
+      clearInterval(this.replay.timer);
+      this.replay.timer = null;
+      this.replay.step=0
+    },
+    dumpImportReadmemsHex() {
+      //  Past raw, generate csv and then over-paste the times
+      //memscene.exe -file run-1649731232340.raw -output run-1649731232340.csv
+      let odd = 0;
+      console.log(
+        imported_data.MemsData.map((x) => {
+          return x.Time;
+        }).join("\n")
+      );
+      let q=imported_data.MemsData[0].Dataframe7d;
+      let y=q.substring(2)
+              .split("")
+              .map(function (o) {
+                let sep = odd % 2 ? " " : "";
+                odd++;
+                return o + sep;
+              });
+          odd=0 
+      console.log('ECU responded to D0 command with: 99 00 02 03\n'+
+        imported_data.MemsData.map((x) => {
+          return (
+            
+            "80: " +
+            x.Dataframe80.substring(2)
+              .split("")
+              .map(function (o) {
+                let sep = odd % 2 ? " " : "";
+                odd++;
+                return o + sep;
+              })
+              .join("") +
+            "\n7D: " +
+            '20 '+x.Dataframe7d.substring(5,67)
+              .split("")
+              .map(function (o) {
+                let sep = odd % 2 ? " " : "";
+                odd++;
+                return o.toUpperCase() + sep;
+              })
+              .join("")
+          );
+        }).join("\n")
+      );
+    },
     parseD0(data) {
       let bytes = this.hexToBytes(data);
       var v = new DataView(bytes);
@@ -264,7 +346,7 @@ export default {
           Uk7d1d: v.getUint8(0x1d + offset),
           Uk7d1e: v.getUint8(0x1e + offset),
           JackCount: v.getUint8(0x1f + offset),
-          Uk7d20: v.getUint8(0x20),// Mems 1.9
+          Uk7d20: v.getUint8(0x20), // Mems 1.9
         };
         Object.assign(this.Dataframe, v7d);
       }
@@ -471,17 +553,18 @@ export default {
                   break;
                 }
                 if (this.ser.buffer.length != 60) {
-this.ser.buffer = "";
-                start = null;
-                this.debug( `rejected << ${this.ser.buffer}`)
-                return;
+                  this.ser.buffer = "";
+                  start = null;
+                  this.debug(`rejected << ${this.ser.buffer}`);
+                  return;
                 }
                 //this.debug( `using (${this.ser.buffer.length}) bytes for 0x80`   );
-                  
+
                 this.ser.buffer = this.ser.buffer.substring(2);
-                this.Dataframe.Dataframe80 = this.ser.buffer; // Patch size for https://analysis.memsfcr.co.uk/
+                this.Dataframe.Dataframe80 = this.ser.buffer; 
+                // Patch size for https://analysis.memsfcr.co.uk/
                 let Mems1_6_7b =
-                  "7d214" + this.Dataframe.Dataframe7d.substring(4, 66);
+                  "7d21" + this.Dataframe.Dataframe7d.substring(4, 66);
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
@@ -545,24 +628,21 @@ this.ser.buffer = "";
               }
               case 0x7d:
                 if (this.ser.buffer.length < 70) {
-                  //this.debug(  `expected 64 (${this.ser.buffer.length}) bytes for 0x7d` );
+                  //this.debug(  `expected 70 (${this.ser.buffer.length}) bytes for 0x7d` );
                   break;
                 }
                 if (this.ser.buffer.length != 70) {
-this.ser.buffer = "";
-                start = null;
-                this.debug( `rejected << ${this.ser.buffer}`)
-                return;
+                  this.ser.buffer = "";
+                  start = null;
+                  this.debug(`rejected << ${this.ser.buffer}`);
+                  return;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
                 //this.debug(                    `got (${this.ser.buffer.length}) bytes for 0x7d`);
 
                 this.Dataframe.Dataframe7d = this.ser.buffer;
                 let now = new Date();
-                let ms = now
-                  .getMilliseconds()
-                  .toString(10)
-                  .padStart(3, "0");
+                let ms = now.getMilliseconds().toString(10).padStart(3, "0");
                 this.Dataframe.Time = `${now.toLocaleTimeString()}.${ms}`;
                 this.parse7D(this.hexToBytes(this.ser.buffer));
                 this.sendToEcu([0x80]); // trigger next frame
@@ -590,10 +670,10 @@ this.ser.buffer = "";
                   this.debug(
                     `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
                   );
-                  if(this.ser.buffer.length==2) {
-                this.ser.buffer = "";
-                start = null;
- // gone wrong - reset    
+                  if (this.ser.buffer.length == 2) {
+                    this.ser.buffer = "";
+                    start = null;
+                    // gone wrong - reset
                   }
                   break;
                 }
@@ -754,6 +834,32 @@ Got data 7D Got data 80 Got data */
     New Init
   </button>
 
+  <button
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="download()"
+  >
+    <i class="fas fa-download"></i>
+    Download
+  </button>
+
+  <button
+    v-if="!replay.timer"
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="simulateStart()"
+  >
+    <i class="fas fa-refresh"></i>
+    Replay
+  </button>
+
+  <button
+    v-if="replay.timer"
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="simulateStop()"
+  >
+    <i class="fas fa-stop"></i>
+    Stop
+  </button>
+
   <hr />
 
   <div class="card-group text-center">
@@ -827,14 +933,6 @@ Got data 7D Got data 80 Got data */
 
   <hr />
   <div>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="download()"
-    >
-      <i class="fas fa-download"></i>
-      Download
-    </button>
-    <br />
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0x7d, 0x80])"
