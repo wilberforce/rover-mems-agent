@@ -449,6 +449,7 @@ export default {
 
     async baud5() {
       this.debug("set reader");
+      let read=0;
       while (this.ser.port.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
         this.debug("waiting on data...");
@@ -473,7 +474,10 @@ export default {
                 //read=read.substring(2);
                 this.debug("default:", this.ser.buffer);
                 this.debug(`<< ${this.ser.buffer}`);
-
+                read++;
+                if ( read ===3) {
+                  //this.sendToEcu([0x7c]);
+                }
                 start = null;
                 this.ser.buffer = "";
               }
@@ -709,7 +713,7 @@ export default {
 
       
 
-      //setTimeout(() => this.baud5(), 0);
+      setTimeout(() => this.baud5(), 0);
 
     
       let sleepMs = 200;
@@ -766,8 +770,12 @@ W3 0 20 Time between key byte 1 and key byte 2
 W4 25 50 Time between key byte 2 (from the ECU) and its inversion from the tester. Also the time
 from the inverted key byte 2 from the tester and the inverted address from the ECU
 */
+//await this.ser.port.setSignals({ break: true });
+  //      await this.wait(sleepMs*4);
+
+sleepMs=220;
       await this.ser.port.setSignals({ break: false });
-      await this.wait(500);
+      await this.wait(sleepMs*8);
 
         await this.ser.port.setSignals({ break: true });
         await this.wait(sleepMs);
@@ -783,11 +791,11 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         await this.wait(sleepMs * 4);
       }
 
-       await this.ser.port.setSignals({ break: false });
-      await this.wait(50);
-      await this.ser.port.close();
-      await this.ser.port.open({baudRate: 9600,databits: 8,bufferSize: 128,parity: "none",stopbits: 1,flowControl: "none",});
-      this.baud5();
+     //  await this.ser.port.setSignals({ break: false });
+      //await this.wait(50);
+     // await this.ser.port.close();
+     // await this.ser.port.open({baudRate: 9600,databits: 8,bufferSize: 128,parity: "none",stopbits: 1,flowControl: "none",});
+      //this.baud5();
       
 
       //00000000  55 76 83
