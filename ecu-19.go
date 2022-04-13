@@ -111,7 +111,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 		}
 
 		if len(buffer) == 0 { continue }
-		fmt.Printf("Time E\n", time.Now());
+		
 		if slicesEqual(buffer, ecu19WokeResponse) {
       fmt.Println("1.9 ECU woke up - init stage 1!")
 	  fmt.Printf("Time F\n", time.Now());

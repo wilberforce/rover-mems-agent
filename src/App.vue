@@ -1,6 +1,7 @@
 this.ser.port.open
 <script lang="ts">
-import imported_data from "./data/run-1649731232340.fcr.json";
+import imported_data from "./data/run-demo.fcr.json";
+//import imported_data from "./data/nofaults.fcr.json";
 
 export default {
   name: "app",
@@ -130,12 +131,10 @@ export default {
         //Dataframe80:
         //"801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
         //"801c00006fff4fff64781b00000100002037877b055f05380ca5000000"
-        //Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        //Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
-        Dataframe7d:
-          "7d20100fff924047ffff0100796400ff6fffff35887f45ff134015801a0029c02a",
-        Dataframe80:
-          "801c03d66fff4fff32741b00000100002037877b00a7053807af100000",
+        Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
+        Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
+        //Dataframe7d:          "7d20100fff924047ffff0100796400ff6fffff35887f45ff134015801a0029c02a",
+        //Dataframe80:          "801c03d66fff4fff32741b00000100002037877b00a7053807af100000",
       },
       parameters: [
         "EngineRPM",
@@ -208,7 +207,7 @@ export default {
       // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
       this.replay.timer = null;
       this.replay.step = 0;
-      this.replay.timer = setInterval(() => this.simulate(), 50);
+      this.replay.timer = setInterval(() => this.simulate(), 500);
       this.simulate();
       this.ECUID = imported_data.Name;
       // Slider for speed - realtime option
@@ -219,10 +218,12 @@ export default {
         if (data) {
           this.Dataframe.Time = data.Time;
           // Patch 1.6 len to 1.9
-          let x7d = "7d21" + this.Dataframe.Dataframe7d.substring(4); //.padEnd(66, "9");
+          let x7d = "7d21" + data.Dataframe7d.substring(4).padEnd(66, "0");
 
           this.parse7D(this.hexToBytes(x7d));
           this.parse80(this.hexToBytes(data.Dataframe80));
+          this.Dataframe.Dataframe7d=x7d;
+          this.Dataframe.Dataframe80=data.Dataframe80;
           this.replay.step++;
         } else {
           this.simulateStop();
@@ -307,9 +308,9 @@ export default {
         let offset = 1;
         let v7d = {
           IgnitionSwitch: v.getUint8(0x01 + offset) > 0,
-          ThrottleAngle: (v.getUint8(0x02 + offset) * 6.0) / 10.0,
+          ThrottleAngle: ((v.getUint8(0x02 + offset) * 6.0) / 10.0).toFixed(1),
           Uk7d03: v.getUint8(0x03 + offset),
-          AirFuelRatio: v.getUint8(0x04 + offset) / 10.0,
+          AirFuelRatio: (v.getUint8(0x04 + offset) / 10.0).toFixed(1),
           DTC2: v.getUint8(0x05 + offset),
           LambdaVoltage: v.getUint8(0x06 + offset) * 5,
           LambdaFrequency: v.getUint8(0x07 + offset),
@@ -361,9 +362,9 @@ export default {
           IntakeAirTemp: v.getUint8(0x05 + offset) - 55.0,
           FuelTemp: v.getUint8(0x06 + offset) - 55.0,
           ManifoldAbsolutePressure: v.getUint8(0x07 + offset),
-          BatteryVoltage: v.getUint8(0x08 + offset) / 10.0,
-          ThrottlePotSensor: v.getUint8(0x09 + offset) * 0.02,
-          ThrottlePosition: v.getUint8(0x09 + offset) * 0.02, // ?
+          BatteryVoltage: (v.getUint8(0x08 + offset) / 10.0).toFixed(2),
+          ThrottlePotSensor: (v.getUint8(0x09 + offset) * 0.02).toFixed(2),
+          ThrottlePosition: (v.getUint8(0x09 + offset) * 0.02).toFixed(2), // calc as 0 - 90 ? x79_02  ThrottleAngle
           IdleSwitch: v.getUint8(0x0a + offset),
           AirconSwitch: v.getUint8(0x0b + offset),
           ParkNeutralSwitch: v.getUint8(0x0c + offset),
@@ -375,8 +376,8 @@ export default {
           IACPosition: v.getUint8(0x12 + offset),
           IdleSpeedDeviation: v.getInt16(0x13 + offset),
           IgnitionAdvanceOffset80: v.getInt8(0x15 + offset),
-          IgnitionAdvance: v.getInt8(0x16 + offset) / 2.0 - 24.0,
-          CoilTime: v.getUint16(0x17 + offset) * 0.0002,
+          IgnitionAdvance: (v.getInt8(0x16 + offset) / 2.0 - 24.0).toFixed(1),
+          CoilTime: (v.getUint16(0x17 + offset) * 0.0002).toFixed(4),
           CrankshaftPositionSensor: v.getUint8(0x19 + offset),
           Uk801a: v.getUint8(0x1a + offset),
           Uk801b: v.getUint8(0x1b + offset),
@@ -473,10 +474,11 @@ export default {
       setTimeout(() => this.baud5listen(), 0);
 
       let sleepMs = 200;
-      sleepMs=200;
-      this.wakeUp5Baud(ecuAddress,sleepMs);
-      //this.wakeUp5BaudNew10bit(secuAddress,sleepMs)
-      //this.wakeUp5BaudNewTiming(ecuAddress,sleepMs) 
+      sleepMs = 200;
+      //this.wakeUp5Baud(ecuAddress, sleepMs);
+      //this.wakeUp5BaudNew10bits(ecuAddress,sleepMs)
+      //this.wakeUp5BaudNewTiming(ecuAddress,sleepMs)
+      this.slowInit19(ecuAddress, sleepMs);
     },
 
     async baud5listen() {
@@ -728,7 +730,56 @@ export default {
         }
       }
     },
-    async wakeUp5Baud(ecuAddress,sleepMs) {
+    async sleepUntil(timestampMs) {
+      let now = new Date().getTime();
+      let sleepFor = timestampMs - now;
+      await new Promise((resolve) => setTimeout(resolve, sleepFor));
+    },
+    async slowInit19() {
+      ecuAddress = 0x16; // 22
+
+      //resetTimeout(5000);
+      dataBuffer = [];
+      this.debug(
+        "Attempting ECU connection... (address: " + ecuAddress + ") (slow init)"
+      );
+
+      debug("Starting slow init, this takes 2 seconds to send");
+      // mEcuAddr = 22;
+
+      // pause/delay to clear the line
+      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.wait(2000);
+
+      let before = new Date().getTime();
+
+      // start bit:
+      await this.ser.port.setSignals({ brk: true, break: true });
+      await this.waitUntil(before + 200);
+
+      for (var i = 0; i < 8; i++) {
+        let bit = (ecuAddress >> i) & 1;
+        this.debug(i + " " + bit);
+        if (bit > 0) {
+          await this.ser.port.setSignals({ brk: false, break: false });
+        } else {
+          await this.ser.port.setSignals({ brk: true, break: true });
+        }
+        await this.waitUntil(before + 200 + (i + 1) * 200);
+      }
+
+      // stop bit:
+      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.waitUntil(before + 200 + 8 * 200 + 200);
+
+      this.debug("Done sending slow init");
+
+      // debug(new Date().getTime()-before);
+      resetTimeout(3000);
+
+      parseDataBufferSlowInit();
+    },
+    async wakeUp5Baud(ecuAddress, sleepMs) {
       // 5 baud/200ms per bit
       // start bit low, stop bit high
 
@@ -757,7 +808,7 @@ export default {
       this.debug("Done sending wakeup");
     },
 
-    async wakeUp5BaudNew10bits(ecuAddress,sleepMs) {
+    async wakeUp5BaudNew10bits(ecuAddress, sleepMs) {
       this.debug("sleeping for 2 seconds to clear the line...");
       await this.ser.port.setSignals({ break: false });
       await this.wait(2000);
@@ -792,12 +843,11 @@ export default {
       }
       this.debug(times);
       this.debug(b);
-       await this.ser.port.setSignals({ brk: false, break: false });
+      await this.ser.port.setSignals({ brk: false, break: false });
       await this.wait(sleepMs);
-     
     },
 
-    async wakeUp5BaudNewTiming(ecuAddress,sleepMs) {
+    async wakeUp5BaudNewTiming(ecuAddress, sleepMs) {
       this.debug("wakeUp5BaudNewTiming");
       // The break signal state (all low, no stop bit) until released.
       /* http://www.internetsomething.com/kwp/KWP2000%20ISO%2014230-2%20KLine%20.pdf ISO 14230 KWP 2000
@@ -812,7 +862,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       //await this.ser.port.setSignals({ break: true });
       //      await this.wait(sleepMs*4);
 
-      
       await this.ser.port.setSignals({ break: false });
       await this.wait(sleepMs * 8);
 

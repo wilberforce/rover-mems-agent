@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/distributed/sers"
@@ -197,6 +198,14 @@ func ecu1xLoop(sp sers.SerialPort, kline bool) ([]byte, error) {
 	        fmt.Printf("ECU ID:\n%s", hex.Dump(buffer[1:5]))
 	        ecu1xSend(sp, ecu1xNextCommand(buffer[0]))
 					buffer = nil
+
+          fmt.Println("Closing port");
+          sp.Close();
+
+          sleepUntil(time.Now(), 500)
+          fmt.Println("exiting");
+          os.Exit(0);
+          
 	        continue
 	      }
 				break
