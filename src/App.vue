@@ -131,8 +131,10 @@ export default {
         //Dataframe80:
         //"801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
         //"801c00006fff4fff64781b00000100002037877b055f05380ca5000000"
-        Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000"
+        Dataframe80:
+          "801c000000000000000000000000000000000000000000000000000000",
+        Dataframe7d:
+          "7d2000000000000000000000000000000000000000000000000000000000000000",
         //Dataframe7d:          "7d20100fff924047ffff0100796400ff6fffff35887f45ff134015801a0029c02a",
         //Dataframe80:          "801c03d66fff4fff32741b00000100002037877b00a7053807af100000",
       },
@@ -222,8 +224,8 @@ export default {
 
           this.parse7D(this.hexToBytes(x7d));
           this.parse80(this.hexToBytes(data.Dataframe80));
-          this.Dataframe.Dataframe7d=x7d;
-          this.Dataframe.Dataframe80=data.Dataframe80;
+          this.Dataframe.Dataframe7d = x7d;
+          this.Dataframe.Dataframe80 = data.Dataframe80;
           this.replay.step++;
         } else {
           this.simulateStop();
@@ -957,13 +959,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">AFR</h6>
-        <h3 class="card-text">{{ Dataframe.AirFuelRatio }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
         <h6 class="card-title">
           Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}
           {{ Dataframe.ClosedLoop }}
@@ -983,22 +978,8 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">Long Term Fuel Trim</h6>
-        <h3 class="card-text">{{ Dataframe.LongTermFuelTrim }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
         <h6 class="card-title">Ignition Advance</h6>
         <h3 class="card-text">{{ Dataframe.IgnitionAdvance }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Ignition Advance Offset</h6>
-        <h3 class="card-text">{{ Dataframe.IgnitionAdvanceOffset80 }}</h3>
       </div>
     </div>
 
@@ -1042,30 +1023,48 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     >
       ECU ID/SER
     </button>
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-      @click="sendToEcu([0xf0])"
+
+       <button
+      class="btn btn-outline-danger btn-sm mr-2 mb-2 float-right"
+      @click="sendToEcu([0xfa])"
     >
-      Diagnostic mode Read
+      Reset ECU
     </button>
 
-    <br />
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2 float-right"
+      @click="sendToEcu([0x0f])"
+    >
+      <i class="fa fa-undo">&nbsp;</i>
+      Reset Adjustments
+    </button>
+
+    <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2 float-right"
+      @click="sendToEcu([0xcc])"
+    >
+      Clear Faults
+    </button>
+
+ 
+
+    <p></p>
 
     <div class="btn-group mr-2" role="group">
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x0d])"
+        @click="sendToEcu([0x0d,0x00])"
       >
         Off
       </button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
-        ><label class="mb-0">Fan 1</label></span
+        ><label class="mb-0">Radiator Fan</label></span
       >
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x1d])"
+        @click="sendToEcu([0x1d,0x00])"
       >
         On
       </button>
@@ -1077,7 +1076,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x92])"
       >
-        -
+        - 
       </button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1092,7 +1091,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x91])"
       >
-        +
+        + 
       </button>
     </div>
 
@@ -1100,52 +1099,111 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x7a])"
+        @click="sendToEcu([0x8a])"
       >
-        -
+        - 
       </button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
-          >Long Term Fuel Trim
+          >Idle Decay Δ
           <span class="ml-1 badge badge-dark">{{
-            Dataframe.LongTermFuelTrim
+            Dataframe.IdleSpeedOffset
           }}</span></label
         ></span
       >
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x7b])"
+        @click="sendToEcu([0x89])"
       >
-        +
+        + 
       </button>
     </div>
+
+        
+  
+
+  <div class="btn-group mr-2" role="group">
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      @click="sendToEcu([0x7a])"
+    >
+      -
+    </button>
+    <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+      ><label class="mb-0"
+        >Long Term Fuel Trim
+        <span class="ml-1 badge badge-dark">{{
+          Dataframe.LongTermFuelTrim
+        }}</span></label
+      ></span
+    >
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      @click="sendToEcu([0x7b])"
+    >
+      +
+    </button>
+  </div>
+
+
+    <p></p>
+
+  <div class="btn-group mr-2" role="group">
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      @click="sendToEcu([0x94])"
+    >
+      -
+    </button>
+    <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+      ><label class="mb-0"
+        >Ignition Advance Δ
+        <span class="ml-1 badge badge-dark">{{
+          Dataframe.IgnitionAdvanceOffset80
+        }}</span></label
+      ></span
+    >
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      @click="sendToEcu([0x93])"
+    >
+      +
+    </button>
+    </div>
+
 
     <div class="btn-group mr-2" role="group">
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x94])"
+        @click="sendToEcu([0x7f])"
       >
-        -
+        - 
       </button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
-          >Ignition Advance Δ
+          >IgnitionAdvanceOffset7d ?? Δ
           <span class="ml-1 badge badge-dark">{{
-            Dataframe.IgnitionAdvanceOffset80
-          }}</span></label
+            Dataframe.IgnitionAdvanceOffset7d 
+          }}  </span></label
         ></span
       >
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x93])"
+        @click="sendToEcu([0x7e])"
       >
-        +
+        + 
       </button>
+     
     </div>
   </div>
+
   <pre>{{ debug_log.join("\n") }}</pre>
 
   <div class="card-columns mt-4">
