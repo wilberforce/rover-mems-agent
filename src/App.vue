@@ -11,6 +11,9 @@ export default {
         timer: null,
         step: 0,
       },
+      record: {
+        timer: null,
+      },
       ser: {
         mode: 0,
         port: null,
@@ -203,11 +206,16 @@ export default {
   },
   mounted: function () {
     //this.dumpImportReadmemsHex();
+    this.parseD1(
+      "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
+    );
+    this.parseD0(
+      "d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630"
+    );
   },
   methods: {
     simulateStart() {
       // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
-      this.replay.timer = null;
       this.replay.step = 0;
       this.replay.timer = setInterval(() => this.simulate(), 500);
       this.simulate();
@@ -236,6 +244,16 @@ export default {
       clearInterval(this.replay.timer);
       this.replay.timer = null;
       this.replay.step = 0;
+    },
+    pollDataframes() {
+      this.sendToEcu([0x7d]);
+    },
+    recordStart() {
+      this.record.timer = setInterval(() => this.pollDataframes(), 500);
+    },
+    recordStop() {
+      clearInterval(this.record.timer);
+      this.record.timer = null;
     },
     dumpImportReadmemsHex() {
       //  Past raw, generate csv and then over-paste the times
@@ -287,6 +305,7 @@ export default {
       let bytes = this.hexToBytes(data);
       var v = new DataView(bytes);
       this.ECUSerial = v.getUint32(1).toString();
+      this.log.dataframe_d0 = data;
     },
     parseD1(data) {
       // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630 1.9 response longer...
@@ -298,6 +317,7 @@ export default {
         null,
         new Uint8Array(bytes.slice(1, 9))
       );
+      this.log.dataframe_d1 = data;
     },
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
@@ -413,10 +433,11 @@ export default {
     },
 
     async sendToEcu(bytes) {
-      //this.debug(">> " + this.hex(bytes), " ");
-      let writer = this.ser.port.writable.getWriter();
-      writer.write(Uint8Array.from(bytes));
-      writer.releaseLock();
+      if ( this.ser.port ) {
+        let writer = this.ser.port.writable.getWriter();
+        writer.write(Uint8Array.from(bytes));
+        writer.releaseLock();
+      }
     },
     hex(bytes, delim = "") {
       return bytes.map((x) => x.toString(16).padStart(2, "0")).join(delim);
@@ -547,14 +568,10 @@ export default {
       });
       this.debug(this.ser.port);
 
-      if (1) this.sendToEcu([0xd0]);
+      this.sendToEcu([0xd0]);
 
-      if (`1`)
-        this.timer = setInterval(() => {
-          this.sendToEcu([0x7d]);
-        }, 1000);
+      this.pollDataframes();
 
-      let read = "";
       let start = null;
       while (this.ser.port.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
@@ -572,8 +589,6 @@ export default {
             this.ser.buffer = this.ser.buffer.concat(
               this.hex(Array.from(value))
             );
-            //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
-            //this.debug( `<< ${read}`);
             if (start === null) start = value[0];
             switch (start) {
               case 0x80:
@@ -587,17 +602,16 @@ export default {
                   this.debug(`rejected << ${this.ser.buffer}`);
                   return;
                 }
-                //this.debug( `using (${this.ser.buffer.length}) bytes for 0x80`   );
 
                 this.ser.buffer = this.ser.buffer.substring(2);
                 this.Dataframe.Dataframe80 = this.ser.buffer;
                 // Patch size for https://analysis.memsfcr.co.uk/
-                let Mems1_6_7b =
-                  "7d21" + this.Dataframe.Dataframe7d.substring(4, 66);
+                //let Mems1_6_7d ="7d20" + this.Dataframe.Dataframe7d.substring(4, 66);
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
-                  Dataframe7d: Mems1_6_7b,
+                  Dataframe7d: this.Dataframe.Dataframe7d,
+                  //Dataframe7d: Mems1_6_7d,
                 });
                 this.parse80(this.hexToBytes(this.ser.buffer));
                 //this.sendToEcu([0x7d]); // trigger next frame
@@ -615,7 +629,7 @@ export default {
                 //let send = start ^ 0xff;
 
                 this.debug(
-                  `1.9 ECU woke up - init stage 1, <<${this.ser.buffer} >> ca`
+                  `1.9 ECU woke up - init stage 1, << ${this.ser.buffer} >> ca`
                 );
                 this.sendToEcu([0xca]);
                 await this.sleep(100);
@@ -697,7 +711,7 @@ export default {
                 // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630
                 if (this.ser.buffer.length < 70) {
                   this.debug(
-                    `expected 64 bytes for 0xd1, got ${this.ser.buffer.length}`
+                    `expected 70 bytes for 0xd1, got ${this.ser.buffer.length}`
                   );
                   if (this.ser.buffer.length == 2) {
                     this.ser.buffer = "";
@@ -923,6 +937,24 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   </button>
 
   <button
+    v-if="!record.timer"
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="recordStart()"
+  >
+    <i class="fas fa-circle" style="color:red"></i>
+    Record
+  </button>
+
+  <button
+    v-if="record.timer"
+    class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+    @click="recordStop()"
+  >
+    <i class="fas fa-stop" style="color:black"></i>
+    Stop
+  </button>
+
+  <button
     v-if="!replay.timer"
     class="btn btn-outline-secondary btn-sm mr-2 mb-2"
     @click="simulateStart()"
@@ -938,7 +970,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   >
     <i class="fas fa-stop"></i>
     Stop
-  </button>
+  </button>  
 
   <hr />
 
@@ -1011,12 +1043,24 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     >
       Data 7D
     </button>
+
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xf4])"><i class="fa fa-heart"></i></button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xF3])">Mode 4</button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xF0])">Current Mode (14 - mode 3)</button>
+       <button
+      class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+      @click="sendToEcu([0xdca])"
+    >
+      0xca init
+    </button>
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0xd0])"
     >
       ECU SER
     </button>
+
+     
     <button
       class="btn btn-outline-secondary btn-sm mr-2 mb-2"
       @click="sendToEcu([0xd1])"
@@ -1024,10 +1068,11 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       ECU ID/SER
     </button>
 
-       <button
+    <button
       class="btn btn-outline-danger btn-sm mr-2 mb-2 float-right"
       @click="sendToEcu([0xfa])"
-    > <i class="fa fa-undo">&nbsp;</i>
+    >
+      <i class="fa fa-undo"></i>
       Clear Adaptations
     </button>
 
@@ -1038,15 +1083,13 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       Clear Faults
     </button>
 
- 
-
     <p></p>
 
     <div class="btn-group mr-2" role="group">
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x0d,0x00])"
+        @click="sendToEcu([0x0d, 0x01])"
       >
         Off
       </button>
@@ -1056,7 +1099,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
-        @click="sendToEcu([0x1d,0x00])"
+        @click="sendToEcu([0x1d, 0x00])"
       >
         On
       </button>
@@ -1068,7 +1111,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x92])"
       >
-        - 
+        -
       </button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1083,7 +1126,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x91])"
       >
-        + 
+        +
       </button>
     </div>
 
@@ -1093,7 +1136,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x8a])"
       >
-        - 
+        -
       </button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1108,66 +1151,61 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x89])"
       >
-        + 
+        +
       </button>
     </div>
 
-        
-  
-
-  <div class="btn-group mr-2" role="group">
-    <button
-      type="button"
-      class="btn btn-sm btn-outline-secondary"
-      @click="sendToEcu([0x7a])"
-    >
-      -
-    </button>
-    <span type="button" class="btn btn-sm btn-outline-secondary disabled"
-      ><label class="mb-0"
-        >Long Term Fuel Trim
-        <span class="ml-1 badge badge-dark">{{
-          Dataframe.LongTermFuelTrim
-        }}</span></label
-      ></span
-    >
-    <button
-      type="button"
-      class="btn btn-sm btn-outline-secondary"
-      @click="sendToEcu([0x7b])"
-    >
-      +
-    </button>
-  </div>
-
+    <div class="btn-group mr-2" role="group">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x7a])"
+      >
+        -
+      </button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >Long Term Fuel Trim
+          <span class="ml-1 badge badge-dark">{{
+            Dataframe.LongTermFuelTrim
+          }}</span></label
+        ></span
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x7b])"
+      >
+        +
+      </button>
+    </div>
 
     <p></p>
 
-  <div class="btn-group mr-2" role="group">
-    <button
-      type="button"
-      class="btn btn-sm btn-outline-secondary"
-      @click="sendToEcu([0x94])"
-    >
-      -
-    </button>
-    <span type="button" class="btn btn-sm btn-outline-secondary disabled"
-      ><label class="mb-0"
-        >Ignition Advance Δ
-        <span class="ml-1 badge badge-dark">{{
-          Dataframe.IgnitionAdvanceOffset80
-        }}</span></label
-      ></span
-    >
-    <button
-      type="button"
-      class="btn btn-sm btn-outline-secondary"
-      @click="sendToEcu([0x93])"
-    >
-      +
-    </button>
+    <div class="btn-group mr-2" role="group">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x94])"
+      >
+        -
+      </button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >Ignition Advance Δ
+          <span class="ml-1 badge badge-dark">{{
+            Dataframe.IgnitionAdvanceOffset80
+          }}</span></label
+        ></span
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x93])"
+      >
+        +
+      </button>
     </div>
-
 
     <div class="btn-group mr-2" role="group">
       <button
@@ -1175,21 +1213,22 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x81])"
       >
-        clearing (auto?) adjustments	0x81
+        clearing (auto?) adjustments 0x81
       </button>
-            <button
+      <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x7f])"
       >
-        - 
+        - 0x7f
       </button>
+
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
           >IgnitionAdvanceOffset7d ?? Δ
-          <span class="ml-1 badge badge-dark">{{
-            Dataframe.IgnitionAdvanceOffset7d 
-          }}  </span></label
+          <span class="ml-1 badge badge-dark"
+            >{{ Dataframe.IgnitionAdvanceOffset7d }}
+          </span></label
         ></span
       >
       <button
@@ -1197,9 +1236,8 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x7e])"
       >
-        + 
+        + 0x7e
       </button>
-     
     </div>
   </div>
 
