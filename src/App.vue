@@ -473,10 +473,10 @@ export default {
       setTimeout(() => this.baud5listen(), 0);
 
       let sleepMs = 200;
-
-      this.wakeUp5Baud(ecuAddress);
-      //this.wakeUp5BaudNew10bits(ecuAddress)
-      //this.wakeUp5BaudNewTiming(ecuAddress) 
+      sleepMs=200;
+      this.wakeUp5Baud(ecuAddress,sleepMs);
+      //this.wakeUp5BaudNew10bit(secuAddress,sleepMs)
+      //this.wakeUp5BaudNewTiming(ecuAddress,sleepMs) 
     },
 
     async baud5listen() {
@@ -494,7 +494,6 @@ export default {
               this.debug("serial this.ser.reader done");
               return;
             }
-            this.debug(value);
             this.ser.buffer = this.ser.buffer.concat(
               this.hex(Array.from(value))
             );
@@ -504,11 +503,11 @@ export default {
             switch (start) {
               default: {
                 //read=read.substring(2);
-                this.debug("default:", this.ser.buffer);
                 this.debug(`<< ${this.ser.buffer}`);
                 read++;
-                if (read === 3) {
-                  //this.sendToEcu([0x7c]);
+                if (read === 5) {
+                  await this.wait(50);
+                  this.sendToEcu([0x7c]);
                 }
                 start = null;
                 this.ser.buffer = "";
@@ -729,22 +728,18 @@ export default {
         }
       }
     },
-    async wakeUp5Baud(ecuAddress) {
+    async wakeUp5Baud(ecuAddress,sleepMs) {
       // 5 baud/200ms per bit
       // start bit low, stop bit high
 
       // pause/delay to clear the line
-      await this.ser.port.setSignals({ brk: false, break: true });
-      await this.wait(1000);
       await this.ser.port.setSignals({ brk: false, break: false });
       this.debug("sleeping for 2 seconds to clear the line");
       await this.wait(2000);
       this.debug("sending wakeup");
       // start bit
       await this.ser.port.setSignals({ brk: true, break: true });
-      await this.wait(200);
-      // await this.wait(195);
-      // ecu address
+      await this.wait(sleepMs);
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
         this.debug(bit);
@@ -753,17 +748,16 @@ export default {
         } else {
           await this.ser.port.setSignals({ brk: true, break: true });
         }
-        await this.wait(200);
-        // await this.wait(195);
+        await this.wait(sleepMs);
       }
       // stop bit
       await this.ser.port.setSignals({ brk: false, break: false });
-      await this.wait(200);
+      await this.wait(sleepMs);
       // await this.wait(195);
       this.debug("Done sending wakeup");
     },
 
-    async wakeUp5BaudNew10bits(ecuAddress) {
+    async wakeUp5BaudNew10bits(ecuAddress,sleepMs) {
       this.debug("sleeping for 2 seconds to clear the line...");
       await this.ser.port.setSignals({ break: false });
       await this.wait(2000);
@@ -775,7 +769,6 @@ export default {
       ecuAddress = (ecuAddress << 1) | 1;
 
       let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
-      let sleepMs = 200;
       let b = [];
       /*
       start = performance.now();
@@ -799,9 +792,12 @@ export default {
       }
       this.debug(times);
       this.debug(b);
+       await this.ser.port.setSignals({ brk: false, break: false });
+      await this.wait(sleepMs);
+     
     },
 
-    async wakeUp5BaudNewTiming(ecuAddress) {
+    async wakeUp5BaudNewTiming(ecuAddress,sleepMs) {
       this.debug("wakeUp5BaudNewTiming");
       // The break signal state (all low, no stop bit) until released.
       /* http://www.internetsomething.com/kwp/KWP2000%20ISO%2014230-2%20KLine%20.pdf ISO 14230 KWP 2000
@@ -816,7 +812,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       //await this.ser.port.setSignals({ break: true });
       //      await this.wait(sleepMs*4);
 
-      sleepMs = 220;
+      
       await this.ser.port.setSignals({ break: false });
       await this.wait(sleepMs * 8);
 
@@ -831,7 +827,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       await this.ser.port.setSignals({ break: true });
       await this.wait(sleepMs);
       await this.ser.port.setSignals({ break: false });
-      await this.wait(sleepMs * 4);
+      await this.wait(sleepMs * 6);
 
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
