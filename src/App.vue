@@ -1,4 +1,5 @@
-this.ser.port.open<script lang="ts">
+this.ser.port.open
+<script lang="ts">
 import imported_data from "./data/run-1649731232340.fcr.json";
 
 export default {
@@ -215,15 +216,14 @@ export default {
     simulate() {
       if (imported_data.MemsData.length >= this.replay.step) {
         let data = imported_data.MemsData[this.replay.step];
-        if ( data ) {
-        this.Dataframe.Time = data.Time;
-        // Patch 1.6 len to 1.9
-        let x7d =
-          "7d21" + this.Dataframe.Dataframe7d.substring(4);//.padEnd(66, "9");
+        if (data) {
+          this.Dataframe.Time = data.Time;
+          // Patch 1.6 len to 1.9
+          let x7d = "7d21" + this.Dataframe.Dataframe7d.substring(4); //.padEnd(66, "9");
 
-        this.parse7D(this.hexToBytes(x7d));
-        this.parse80(this.hexToBytes(data.Dataframe80));
-        this.replay.step++;
+          this.parse7D(this.hexToBytes(x7d));
+          this.parse80(this.hexToBytes(data.Dataframe80));
+          this.replay.step++;
         } else {
           this.simulateStop();
         }
@@ -232,50 +232,52 @@ export default {
     simulateStop() {
       clearInterval(this.replay.timer);
       this.replay.timer = null;
-      this.replay.step=0
+      this.replay.step = 0;
     },
     dumpImportReadmemsHex() {
       //  Past raw, generate csv and then over-paste the times
       //memscene.exe -file run-1649731232340.raw -output run-1649731232340.csv
       let odd = 0;
-      console.log(
+      this.debug(
         imported_data.MemsData.map((x) => {
           return x.Time;
         }).join("\n")
       );
-      let q=imported_data.MemsData[0].Dataframe7d;
-      let y=q.substring(2)
-              .split("")
-              .map(function (o) {
-                let sep = odd % 2 ? " " : "";
-                odd++;
-                return o + sep;
-              });
-          odd=0 
-      console.log('ECU responded to D0 command with: 99 00 02 03\n'+
-        imported_data.MemsData.map((x) => {
-          return (
-            
-            "80: " +
-            x.Dataframe80.substring(2)
-              .split("")
-              .map(function (o) {
-                let sep = odd % 2 ? " " : "";
-                odd++;
-                return o + sep;
-              })
-              .join("") +
-            "\n7D: " +
-            '20 '+x.Dataframe7d.substring(5,67)
-              .split("")
-              .map(function (o) {
-                let sep = odd % 2 ? " " : "";
-                odd++;
-                return o.toUpperCase() + sep;
-              })
-              .join("")
-          );
-        }).join("\n")
+      let q = imported_data.MemsData[0].Dataframe7d;
+      let y = q
+        .substring(2)
+        .split("")
+        .map(function (o) {
+          let sep = odd % 2 ? " " : "";
+          odd++;
+          return o + sep;
+        });
+      odd = 0;
+      this.debug(
+        "ECU responded to D0 command with: 99 00 02 03\n" +
+          imported_data.MemsData.map((x) => {
+            return (
+              "80: " +
+              x.Dataframe80.substring(2)
+                .split("")
+                .map(function (o) {
+                  let sep = odd % 2 ? " " : "";
+                  odd++;
+                  return o + sep;
+                })
+                .join("") +
+              "\n7D: " +
+              "20 " +
+              x.Dataframe7d.substring(5, 67)
+                .split("")
+                .map(function (o) {
+                  let sep = odd % 2 ? " " : "";
+                  odd++;
+                  return o.toUpperCase() + sep;
+                })
+                .join("")
+            );
+          }).join("\n")
       );
     },
     parseD0(data) {
@@ -404,7 +406,7 @@ export default {
           return;
         }
       }
-      //console.log({ms:ms,actual:performance.now() - start});
+      //this.debug({ms:ms,actual:performance.now() - start});
     },
 
     async sendToEcu(bytes) {
@@ -447,9 +449,39 @@ export default {
       this.ser.mode = 0;
     },
 
-    async baud5() {
+    async newInit() {
+      this.ser.port = await navigator.serial.requestPort();
+      this.debug(this.ser.port.getInfo());
+
+      await this.ser.port.open({
+        baudRate: 9600,
+        databits: 8,
+        bufferSize: 128,
+        parity: "none",
+        stopbits: 1,
+        flowControl: "none",
+      });
+
+      let ecuAddress = 0x16;
+      this.debug(
+        `Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`
+      );
+
+      //this.sendToEcu([0xca]);
+      //this.sendToEcu([0x055]);
+
+      setTimeout(() => this.baud5listen(), 0);
+
+      let sleepMs = 200;
+
+      this.wakeUp5Baud(ecuAddress);
+      //this.wakeUp5BaudNew10bits(ecuAddress)
+      //this.wakeUp5BaudNewTiming(ecuAddress) 
+    },
+
+    async baud5listen() {
       this.debug("set reader");
-      let read=0;
+      let read = 0;
       while (this.ser.port.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
         this.debug("waiting on data...");
@@ -462,7 +494,7 @@ export default {
               this.debug("serial this.ser.reader done");
               return;
             }
-            console.log(value);
+            this.debug(value);
             this.ser.buffer = this.ser.buffer.concat(
               this.hex(Array.from(value))
             );
@@ -475,7 +507,7 @@ export default {
                 this.debug("default:", this.ser.buffer);
                 this.debug(`<< ${this.ser.buffer}`);
                 read++;
-                if ( read ===3) {
+                if (read === 3) {
                   //this.sendToEcu([0x7c]);
                 }
                 start = null;
@@ -485,7 +517,7 @@ export default {
           }
         } catch (error) {
           this.debug(`error: ${error.message}`);
-          console.log(error);
+          this.debug(error);
           throw error;
         } finally {
           this.ser.reader.releaseLock();
@@ -496,11 +528,11 @@ export default {
     },
     async openSerialPort() {
       //  let ports = await navigator.serial.getPorts();
-      //    console.log(ports);
+      //    this.debug(ports);
       //      let info = ports[0].getInfo();
 
       this.ser.port = await navigator.serial.requestPort();
-      console.log(this.ser.port.getInfo());
+      this.debug(this.ser.port.getInfo());
 
       await this.ser.port.open({
         baudRate: 9600,
@@ -510,7 +542,7 @@ export default {
         stopbits: 1,
         flowControl: "none",
       });
-      console.log(this.ser.port);
+      this.debug(this.ser.port);
 
       if (1) this.sendToEcu([0xd0]);
 
@@ -555,7 +587,7 @@ export default {
                 //this.debug( `using (${this.ser.buffer.length}) bytes for 0x80`   );
 
                 this.ser.buffer = this.ser.buffer.substring(2);
-                this.Dataframe.Dataframe80 = this.ser.buffer; 
+                this.Dataframe.Dataframe80 = this.ser.buffer;
                 // Patch size for https://analysis.memsfcr.co.uk/
                 let Mems1_6_7b =
                   "7d21" + this.Dataframe.Dataframe7d.substring(4, 66);
@@ -689,7 +721,7 @@ export default {
           }
         } catch (error) {
           this.debug(`error: ${error.message}`);
-          console.log(error);
+          this.debug(error);
         } finally {
           this.ser.reader.releaseLock();
           this.ser.reader = null;
@@ -697,43 +729,55 @@ export default {
         }
       }
     },
-    async newInit() {
-      this.ser.port = await navigator.serial.requestPort();
-      console.log(this.ser.port.getInfo());
+    async wakeUp5Baud(ecuAddress) {
+      // 5 baud/200ms per bit
+      // start bit low, stop bit high
 
-      await this.ser.port.open({baudRate: 9600,databits: 8,bufferSize: 128,parity: "none",stopbits: 1,flowControl: "none",});
+      // pause/delay to clear the line
+      await this.ser.port.setSignals({ brk: false, break: true });
+      await this.wait(1000);
+      await this.ser.port.setSignals({ brk: false, break: false });
+      this.debug("sleeping for 2 seconds to clear the line");
+      await this.wait(2000);
+      this.debug("sending wakeup");
+      // start bit
+      await this.ser.port.setSignals({ brk: true, break: true });
+      await this.wait(200);
+      // await this.wait(195);
+      // ecu address
+      for (var i = 0; i < 8; i++) {
+        let bit = (ecuAddress >> i) & 1;
+        this.debug(bit);
+        if (bit > 0) {
+          await this.ser.port.setSignals({ brk: false, break: false });
+        } else {
+          await this.ser.port.setSignals({ brk: true, break: true });
+        }
+        await this.wait(200);
+        // await this.wait(195);
+      }
+      // stop bit
+      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.wait(200);
+      // await this.wait(195);
+      this.debug("Done sending wakeup");
+    },
 
-      let ecuAddress = 0x16;
-      this.debug(
-        `Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`
-      );
-
-      //this.sendToEcu([0xca]);
-      //this.sendToEcu([0x055]);
-
-      
-
-      setTimeout(() => this.baud5(), 0);
-
-    
-      let sleepMs = 200;
-
-      if (0) {
-
-          this.debug("sleeping for 2 seconds to clear the line...");
+    async wakeUp5BaudNew10bits(ecuAddress) {
+      this.debug("sleeping for 2 seconds to clear the line...");
       await this.ser.port.setSignals({ break: false });
       await this.wait(2000);
-        let times = [];
-        //      await this.ser.port.setSignals({ break: true });
+      let times = [];
+      //      await this.ser.port.setSignals({ break: true });
 
-        let i = 0;
+      let i = 0;
 
-        ecuAddress = (ecuAddress << 1) | 1;
+      ecuAddress = (ecuAddress << 1) | 1;
 
-        let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
-        let sleepMs = 200;
-        let b = [];
-        /*
+      let bits = ecuAddress.toString(2).padStart(10, 0).split("").reverse();
+      let sleepMs = 200;
+      let b = [];
+      /*
       start = performance.now();
       let timer = setInterval(() => {
         this.ser.port.setSignals({ break: !bits[i] });
@@ -741,28 +785,27 @@ export default {
         i = i + 1;
         if (i === 10) clearInterval(timer);
       }, sleepMs);
-      console.log(times);
+      this.debug(times);
       */
-        let start = performance.now();
-        let last = 0;
-        for (let i = 0; i < 10; i++) {
-          await this.ser.port.setSignals({ break: !bits[i] });
-          let now = performance.now();
-          times.push(now - start);
-          start = now;
-          //b.push(bits[i]);
-          await this.wait(sleepMs);
-        }
-        console.log(times);
-        console.log(b);
+      let start = performance.now();
+      let last = 0;
+      for (let i = 0; i < 10; i++) {
+        await this.ser.port.setSignals({ break: !bits[i] });
+        let now = performance.now();
+        times.push(now - start);
+        start = now;
+        //b.push(bits[i]);
+        await this.wait(sleepMs);
       }
-      if (1) {
+      this.debug(times);
+      this.debug(b);
+    },
 
-          this.debug("5 baud ");
-          // The break signal state (all low, no stop bit) until released. 
-
-/*
-W0 300 - Time before the tester starts to transmit the address byte 
+    async wakeUp5BaudNewTiming(ecuAddress) {
+      this.debug("wakeUp5BaudNewTiming");
+      // The break signal state (all low, no stop bit) until released.
+      /* http://www.internetsomething.com/kwp/KWP2000%20ISO%2014230-2%20KLine%20.pdf ISO 14230 KWP 2000
+W0 300 - Time before the tester starts to transmit the address byte
 
 W1 60 300 Time from end of the address byte to start of synchronisation pattern
 W2 5 20 Time from end of the synchronisation pattern to the start of key byte 1
@@ -770,35 +813,26 @@ W3 0 20 Time between key byte 1 and key byte 2
 W4 25 50 Time between key byte 2 (from the ECU) and its inversion from the tester. Also the time
 from the inverted key byte 2 from the tester and the inverted address from the ECU
 */
-//await this.ser.port.setSignals({ break: true });
-  //      await this.wait(sleepMs*4);
+      //await this.ser.port.setSignals({ break: true });
+      //      await this.wait(sleepMs*4);
 
-sleepMs=220;
+      sleepMs = 220;
       await this.ser.port.setSignals({ break: false });
-      await this.wait(sleepMs*8);
+      await this.wait(sleepMs * 8);
 
-        await this.ser.port.setSignals({ break: true });
-        await this.wait(sleepMs);
-        await this.ser.port.setSignals({ break: false });
-        await this.wait(sleepMs);
-        await this.ser.port.setSignals({ break: true });
-        await this.wait(sleepMs * 2);
-        await this.ser.port.setSignals({ break: false });
-        await this.wait(sleepMs);
-        await this.ser.port.setSignals({ break: true });
-        await this.wait(sleepMs);
-        await this.ser.port.setSignals({ break: false });
-        await this.wait(sleepMs * 4);
-      }
+      await this.ser.port.setSignals({ break: true });
+      await this.wait(sleepMs);
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(sleepMs);
+      await this.ser.port.setSignals({ break: true });
+      await this.wait(sleepMs * 2);
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(sleepMs);
+      await this.ser.port.setSignals({ break: true });
+      await this.wait(sleepMs);
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(sleepMs * 4);
 
-     //  await this.ser.port.setSignals({ break: false });
-      //await this.wait(50);
-     // await this.ser.port.close();
-     // await this.ser.port.open({baudRate: 9600,databits: 8,bufferSize: 128,parity: "none",stopbits: 1,flowControl: "none",});
-      //this.baud5();
-      
-
-      //00000000  55 76 83
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
       //Expect 0x7c, 0xE9
@@ -806,21 +840,6 @@ sleepMs=220;
   },
 };
 </script>
-
-/* break 1 break 0 break 1 break 1 break 0 break 1 break 0 break 0 break 0 break
-0 Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had buffer data:
-got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data: got 1 bytes
-00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none
-had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 had buffer data:
-got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial cable set to:
-9600,8n1,none had buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9
-had buffer data: got 1 bytes 00000000 7c ||| Connecting to MEMS 1.9 ECU Serial
-cable set to: 9600,8n1,none had buffer data: got 0 bytes 1.9 had buffer data:
-got 0 bytes Connecting to MEMS 1.9 ECU Serial cable set to: 9600,8n1,none had
-buffer data: got 0 bytes 1.9 ECU woke up - init stage 1 1.9 ECU init stage 2 Got
-CA Got 75 Got F4 00 Got D0 and ECU ID ECU ID: 00000000 c7 00 05 cb |....| Got
-data 80 Got data 7D Got data 80 Got data 7D Got data 80 Got data 7D Got data 80
-Got data 7D Got data 80 Got data */
 
 <template>
   <span class="float-right">
@@ -901,7 +920,7 @@ Got data 7D Got data 80 Got data */
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">
-          Lambda {{ !Dataframe.ClosedLoop  ? "Closed" : "Open" }}
+          Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}
           {{ Dataframe.ClosedLoop }}
         </h6>
         <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
