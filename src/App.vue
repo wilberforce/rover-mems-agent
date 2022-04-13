@@ -1027,16 +1027,8 @@ from the inverted key byte 2 from the tester and the inverted address from the E
        <button
       class="btn btn-outline-danger btn-sm mr-2 mb-2 float-right"
       @click="sendToEcu([0xfa])"
-    >
-      Reset ECU
-    </button>
-
-    <button
-      class="btn btn-outline-secondary btn-sm mr-2 mb-2 float-right"
-      @click="sendToEcu([0x0f])"
-    >
-      <i class="fa fa-undo">&nbsp;</i>
-      Reset Adjustments
+    > <i class="fa fa-undo">&nbsp;</i>
+      Clear Adaptations
     </button>
 
     <button
@@ -1179,6 +1171,13 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
     <div class="btn-group mr-2" role="group">
       <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="sendToEcu([0x81])"
+      >
+        clearing (auto?) adjustments	0x81
+      </button>
+            <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
         @click="sendToEcu([0x7f])"
