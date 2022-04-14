@@ -34,8 +34,10 @@ jQuery(function () {
 import { createApp } from "vue";
 import App from "./App.vue";
 
-const app = createApp(App);
+import chart from "vue3-charts";
 
+const app = createApp(App);
+app.use(chart);
 app.mount("#app");
 
 export { app, jQuery };

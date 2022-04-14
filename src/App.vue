@@ -1,13 +1,31 @@
-this.ser.port.open
 <script lang="ts">
 import imported_data from "./data/run-demo.fcr.json";
 //import imported_data from "./data/nofaults.fcr.json";
+import { Chart, Grid, Line, Tooltip } from 'vue3-charts'
+
 
 export default {
   name: "app",
+
   data() {
     return {
-      replay: {
+      data: [3,45,6,7,8,9,9],
+      data2 :[
+  { name: 'Jan', pl: 1000, avg: 500, inc: 300 },
+  { name: 'Feb', pl: 2000, avg: 900, inc: 400 },
+  { name: 'Apr', pl: 400, avg: 400, inc: 500 },
+  { name: 'Mar', pl: 3100, avg: 1300, inc: 700 },
+  { name: 'May', pl: 200, avg: 100, inc: 200 },
+  { name: 'Jun', pl: 600, avg: 400, inc: 300 },
+  { name: 'Jul', pl: 500, avg: 90, inc: 100 }
+],
+ direction :'horizontal', 
+ margin:{
+      left: 0,
+      top: 20,
+      right: 20,
+      bottom: 0
+},      replay: {
         timer: null,
         step: 0,
       },
@@ -30,6 +48,7 @@ export default {
         ECUSerial: "",
         MemsData: [],
       },
+      history: [],
       Dataframe: {
         Time: "00:00:00.000",
         EngineRPM: 0,
@@ -202,6 +221,17 @@ export default {
       debug_log: [],
     };
   },
+  watch: {
+        "Dataframe.Time"() {
+          this.history.push({Time:this.Dataframe.Time,
+          EngineRPM:this.Dataframe.EngineRPM,
+          LambdaVoltage: this.Dataframe.LambdaVoltage}
+          );
+          if( this.history.length > 10)
+          this.history.shift();
+        }
+},
+
   mounted: function () {
     //this.dumpImportReadmemsHex();
     //this.parseD1("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
@@ -424,7 +454,7 @@ export default {
 
     async sendToEcu(bytes) {
       if (this.ser.port) {
-        this.debug({ bytes: bytes });
+        //this.debug({ bytes: bytes });
         let writer = this.ser.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
         writer.releaseLock();
@@ -975,6 +1005,37 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
   <hr />
 
+  <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Chart</h6>
+          <Chart :key='history[0]'
+    :size="{ width: 800, height: 400 }"
+    :data="history"
+    :margin="margin"
+    :direction="direction">
+
+    <template #layers>
+      <Grid strokeDasharray="2,2" />
+      <Line :dataKeys="['Time', 'EngineRPM']" />
+      <Line :dataKeys="['Time','LambdaVoltage']" :lineStyle="{ stroke: 'red' }" />
+    </template>
+
+ <template #widgets>
+      <Tooltip
+        borderColor="#48CAE4"
+        :config="{
+          Time: { hide: true },
+          EngineRPM: { color: '#0077b6' },
+          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
+          
+        }"
+      />
+    </template>
+  </Chart>
+      </div>
+    </div>
+
+
   <div class="card-group text-center">
     <div class="card">
       <div class="card-body">
@@ -990,11 +1051,12 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       </div>
     </div>
 
+
+
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">
           Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}
-          {{ Dataframe.ClosedLoop }}
         </h6>
         <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
       </div>

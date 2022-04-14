@@ -3,3 +3,4 @@ debug.log
 *.zip
 *.bin
 node_modules
+web-static
