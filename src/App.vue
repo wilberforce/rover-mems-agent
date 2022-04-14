@@ -758,9 +758,9 @@ export default {
                 break;
 
               case 0xd1:
-                // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630
-                if (this.ser.buffer.length < 70) {
-                  this.debug(`expected 70 bytes for 0xd1, got ${this.ser.buffer.length}`);
+                // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb 70!
+                if (this.ser.buffer.length < 60) {
+                  this.debug(`expected 60+ bytes for 0xd1, got ${this.ser.buffer.length}`);
                   if (this.ser.buffer.length == 2) {
                     this.ser.buffer = "";
                     start = null;
