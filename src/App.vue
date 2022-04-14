@@ -204,8 +204,8 @@ export default {
   },
   mounted: function () {
     //this.dumpImportReadmemsHex();
-    this.parseD1("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
-    this.parseD0("d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
+    //this.parseD1("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
+    //this.parseD0("d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
   },
   methods: {
     simulateStart() {
@@ -501,14 +501,12 @@ export default {
       //this.debug(this.ser.port.getInfo());
 
       await this.ser.port.open({
-        baudRate: 50,
+        baudRate: 600,
         databits: 8,
         parity: "even",
         stopbits: 1,
         flowControl: "none",
       });
-
-      this.sendToEcu([66, 67, 78]);
 
       ecuAddress = (ecuAddress << 1) | 1;
 
@@ -524,7 +522,7 @@ export default {
       let start = performance.now();
 
       for (let i = 0; i < 10; i++) {
-        this.sendToEcu([bits[i]]);
+        this.sendToEcu([bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i]]);
       }
       this.debug(`time: ${performance.now() - start}\n`);
       const reader = this.ser.port.readable.getReader();
@@ -532,12 +530,12 @@ export default {
       setTimeout(() => {
         this.debug("canceling...");
         reader.cancel();
-      }, 2000);
+      }, 2200);
 
       while (true) {
         const { value, done } = await reader.read();
         if (value) {
-          log.textContent += value + "\n";
+          console.log( value)
         }
         if (done) {
           console.log("[readLoop] DONE", done);
