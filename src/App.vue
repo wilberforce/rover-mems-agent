@@ -1,33 +1,26 @@
 <script lang="ts">
 import imported_data from "./data/run-demo.fcr.json";
 //import imported_data from "./data/nofaults.fcr.json";
-import { Chart, Grid, Line, Tooltip } from 'vue3-charts'
+import { Chart, Grid, Line, Tooltip } from "vue3-charts";
+import { VueSvgGauge } from "vue-svg-gauge";
 
-
+// https://codepen.io/netzzwerg/pen/QBQBaM
+// simple vue3 svg
+//
+// https://hellocomet.github.io/vue-svg-gauge/
 export default {
   name: "app",
+  components: {
+    VueSvgGauge,
+  },
 
   data() {
     return {
-      data: [3,45,6,7,8,9,9],
-      data2 :[
-  { name: 'Jan', pl: 1000, avg: 500, inc: 300 },
-  { name: 'Feb', pl: 2000, avg: 900, inc: 400 },
-  { name: 'Apr', pl: 400, avg: 400, inc: 500 },
-  { name: 'Mar', pl: 3100, avg: 1300, inc: 700 },
-  { name: 'May', pl: 200, avg: 100, inc: 200 },
-  { name: 'Jun', pl: 600, avg: 400, inc: 300 },
-  { name: 'Jul', pl: 500, avg: 90, inc: 100 }
-],
- direction :'horizontal', 
- margin:{
-      left: 0,
-      top: 20,
-      right: 20,
-      bottom: 0
-},      replay: {
+      appVersion: __APP_VERSION__,
+      replay: {
         timer: null,
         step: 0,
+        pause: false,
       },
       record: {
         timer: null,
@@ -49,8 +42,9 @@ export default {
         MemsData: [],
       },
       history: [],
+      stopwatch: 0,
       Dataframe: {
-        Time: "00:00:00.000",
+        Time: null, // "00:00:00.000",
         EngineRPM: 0,
         CoolantTemp: 0,
         AmbientTemp: 0,
@@ -221,16 +215,28 @@ export default {
       debug_log: [],
     };
   },
+  computed: {
+    chartKey() {
+      return this.replay.pause ? false : this.stopwatch;
+    },
+    chartSize() {
+      return { width: document.body.clientWidth, height: 250 };
+    },
+    stopwatchFormat() {
+      return this.timeFormat(this.stopwatch * 1000);
+    }
+  },
   watch: {
-        "Dataframe.Time"() {
-          this.history.push({Time:this.Dataframe.Time,
-          EngineRPM:this.Dataframe.EngineRPM,
-          LambdaVoltage: this.Dataframe.LambdaVoltage}
-          );
-          if( this.history.length > 10)
-          this.history.shift();
-        }
-},
+    "Dataframe.Time"(before, after) {
+      if (before && after) {
+        let delta = before.split(":")[2] - after.split(":")[2];
+        delta = delta.toFixed(1);
+        this.stopwatch += Number(delta);
+        this.history.push({ Time: this.stopwatchFormat, EngineRPM: this.Dataframe.EngineRPM, LambdaVoltage: this.Dataframe.LambdaVoltage });
+        if (this.history.length > 20) this.history.shift();
+      }
+    },
+  },
 
   mounted: function () {
     //this.dumpImportReadmemsHex();
@@ -238,6 +244,14 @@ export default {
     //this.parseD0("d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
   },
   methods: {
+    timeFormat(t) {
+      let now = new Date();
+      now.setTime(t + 12 * 3600000);
+      let ms = now.getMilliseconds().toString(10).padStart(3, "0");
+      let d = `${now.toLocaleTimeString()}.${ms}`;
+
+      return d.substring(1, 10);
+    },
     simulateStart() {
       // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
       this.replay.step = 0;
@@ -247,6 +261,7 @@ export default {
       // Slider for speed - realtime option
     },
     simulate() {
+      if (this.replay.pause) return;
       if (imported_data.MemsData.length >= this.replay.step) {
         let data = imported_data.MemsData[this.replay.step];
         if (data) {
@@ -268,6 +283,9 @@ export default {
       clearInterval(this.replay.timer);
       this.replay.timer = null;
       this.replay.step = 0;
+    },
+    simulatePause() {
+      this.replay.pause = !this.replay.pause;
     },
     pollDataframes() {
       this.sendToEcu([0x7d]);
@@ -552,7 +570,7 @@ export default {
       let start = performance.now();
 
       for (let i = 0; i < 10; i++) {
-        this.sendToEcu([bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i],bits[i]]);
+        this.sendToEcu([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
       }
       this.debug(`time: ${performance.now() - start}\n`);
       const reader = this.ser.port.readable.getReader();
@@ -565,7 +583,7 @@ export default {
       while (true) {
         const { value, done } = await reader.read();
         if (value) {
-          console.log( value)
+          console.log(value);
         }
         if (done) {
           console.log("[readLoop] DONE", done);
@@ -761,8 +779,6 @@ export default {
                   return;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
-                //this.debug(                    `got (${this.ser.buffer.length}) bytes for 0x7d`);
-
                 this.Dataframe.Dataframe7d = this.ser.buffer;
                 let now = new Date();
                 let ms = now.getMilliseconds().toString(10).padStart(3, "0");
@@ -773,7 +789,6 @@ export default {
                 start = null;
                 break;
               case 0xd0:
-                //
                 if (this.ser.buffer.length < 4) {
                   this.debug(`expected 64 bytes for 0xd0, got ${this.ser.buffer.length}`);
                   break;
@@ -965,14 +980,29 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 </script>
 
 <template>
-  <span class="float-right">
-    <label
-      >ECU ID: <span class="badge badge-dark">{{ ECUID }}</span></label
-    >
-    <label class="ml-3"
-      >ECU Serial: <span class="badge badge-dark">{{ ECUSerial }}</span></label
-    >
-  </span>
+  <div class="fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <div class="container-sm">
+        <a class="navbar-brand" href="/">MEMS 1.9 Diagnostic ⚙️ </a>
+        <div class="navbar-text">
+          <small>{{ appVersion }}</small>
+        </div>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent"></div>
+        <div class="collapse navbar-collapse"></div>
+        <div class="navbar-text">
+          <span class="float-right">
+            <label class="navbar-item"
+              >ECU ID: <span class="badge badge-dark">{{ ECUID }}</span></label
+            >
+            <label class="ml-3"
+              >ECU Serial: <span class="badge badge-dark">{{ ECUSerial }}</span></label
+            >
+          </span>
+        </div>
+      </div>
+    </nav>
+  </div>
+
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
@@ -1000,65 +1030,35 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
   <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
     <i class="fas fa-stop"></i>
-    Stop
   </button>
 
-  <hr />
+  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
+    <i class="fas fa-pause"></i>
+  </button>
 
-  <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Chart</h6>
-          <Chart :key='history[0]'
-    :size="{ width: 800, height: 400 }"
-    :data="history"
-    :margin="margin"
-    :direction="direction">
-
-    <template #layers>
-      <Grid strokeDasharray="2,2" />
-      <Line :dataKeys="['Time', 'EngineRPM']" />
-      <Line :dataKeys="['Time','LambdaVoltage']" :lineStyle="{ stroke: 'red' }" />
-    </template>
-
- <template #widgets>
-      <Tooltip
-        borderColor="#48CAE4"
-        :config="{
-          Time: { hide: true },
-          EngineRPM: { color: '#0077b6' },
-          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
-          
-        }"
-      />
-    </template>
-  </Chart>
-      </div>
-    </div>
-
+  <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
+    <i class="fas fa-play"></i>
+  </button>
 
   <div class="card-group text-center">
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">Time</h6>
-        <h3 class="card-text">{{ Dataframe.Time }}</h3>
+        <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
       </div>
     </div>
 
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">RPM</h6>
-        <h3 class="card-text">{{ Dataframe.EngineRPM }}</h3>
+        <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
       </div>
     </div>
 
-
-
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">
-          Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}
-        </h6>
-        <h3 class="card-text">{{ Dataframe.LambdaVoltage }}</h3>
+        <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
       </div>
     </div>
   </div>
@@ -1067,25 +1067,56 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">Short Term Fuel Trim</h6>
-        <h3 class="card-text">{{ Dataframe.ShortTermFuelTrim }}</h3>
+        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
       </div>
     </div>
 
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">Ignition Advance</h6>
-        <h3 class="card-text">{{ Dataframe.IgnitionAdvance }}</h3>
+        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
       </div>
     </div>
 
     <div class="card">
       <div class="card-body">
         <h6 class="card-title">Battery Voltage</h6>
-        <h3 class="card-text">{{ Dataframe.BatteryVoltage }}</h3>
+        <h3 class="card-text text-monospace">{{ Dataframe.BatteryVoltage }}</h3>
       </div>
     </div>
   </div>
 
+  <br />
+  <!--    <VueSvgGauge
+  :start-angle="-110"
+  :end-angle="110"
+  :value="3"
+  :separator-step="1"
+  :min="0"
+  :max="4"
+  :gauge-color="[{ offset: 0, color: '#347AB0'}, { offset: 100, color: '#8CDFAD'}]"
+  :scale-interval="0.1"
+/>
+-->
+  <Chart :key="chartKey" :size="chartSize" :data="history" direction="horizontal">
+    <template #layers>
+      <Grid strokeDasharray="2,2" />
+      <Area :dataKeys="['Time', 'EngineRPM']" type="monotone" :areaStyle="{ fill: 'url(#grad)' }" />
+      <Line :dataKeys="['Time', 'EngineRPM']" />
+      <Line :dataKeys="['Time', 'LambdaVoltage']" :lineStyle="{ stroke: 'red' }" />
+    </template>
+
+    <template #widgets>
+      <Tooltip
+        borderColor="#48CAE4"
+        :config="{
+          Time: { hide: true },
+          EngineRPM: { color: '#0077b6' },
+          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
+        }"
+      />
+    </template>
+  </Chart>
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">All Data</button>
@@ -1177,7 +1208,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <div class="card" v-for="param in parameters" v-bind:key="param">
       <div class="card-body">
         {{ param }}
-        <span class="badge badge-dark float-right">{{ Dataframe[param] }}</span>
+        <span class="badge badge-dark text-monospace float-right">{{ Dataframe[param] }}</span>
       </div>
     </div>
   </div>
