@@ -18,7 +18,7 @@ export default defineConfig({
     cssCodeSplit: true,
     rollupOptions: {
       output: {
-        manualChunks: () => "everything.js", // create one js bundle
+        //manualChunks: () => "everything.js", // create one js bundle
       }      
     },
   },

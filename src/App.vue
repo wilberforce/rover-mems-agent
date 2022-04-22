@@ -1,6 +1,9 @@
 <script lang="ts">
-import imported_data from "./data/run-demo.fcr.json";
-//import imported_data from "./data/nofaults.fcr.json";
+//import imported_data from "./data/run-demo.fcr.json";
+//import imported_data from "./data/run-1649820449532.fcr.json";
+//import imported_data from "./data/run-1649822529717.fcr.json";
+
+import imported_data from "./data/nofaults.fcr.json";
 import { Chart, Grid, Line, Tooltip } from "vue3-charts";
 import { VueSvgGauge } from "vue-svg-gauge";
 
@@ -17,10 +20,32 @@ export default {
   data() {
     return {
       appVersion: __APP_VERSION__,
+      waitReply: false,
+      queuedBytes: [],
+      expectingBytes: null,
+      rpmD1: 0,
+      rpmD2: { min: [], max: [], val: 0 },
+      weightKg: 820,
+      Nm: 0,
+      gForce: 0,
+      dist: 0,
+      lastDist: 0,
+      deltaDist: 0,
+      gear: 0,
+      gearing: {
+        0: 0,
+        1: 5.64,
+        2: 9.69,
+        3: 13.66,
+        4: 17.28,
+        5: 23.33,
+      },
+      lastEngineRPM: 0,
       replay: {
         timer: null,
         step: 0,
         pause: false,
+        interval: 333,
       },
       record: {
         timer: null,
@@ -52,7 +77,6 @@ export default {
         FuelTemp: 0,
         ManifoldAbsolutePressure: 0,
         BatteryVoltage: 0,
-        ThrottlePotSensor: 0.0,
         ThrottlePosition: 0,
         IdleSwitch: false,
         AirconSwitch: false,
@@ -160,7 +184,6 @@ export default {
         "FuelTemp",
         "ManifoldAbsolutePressure",
         "BatteryVoltage",
-        "ThrottlePotSensor",
         "ThrottlePosition",
         "IdleSwitch",
         "AirconSwitch",
@@ -216,6 +239,44 @@ export default {
     };
   },
   computed: {
+    faults() {
+      let f = [];
+      if (this.Dataframe.DTC0 & 0x01) f.push("Coolant Sensor");
+      if (this.Dataframe.DTC0 & 0x02) f.push("Inlet Air Temp Sensor");
+      if (this.Dataframe.DTC0 & 0x20) f.push("Fuel Rail Temp Sensor");
+      if (this.Dataframe.DTC0 & 0x08) f.push("Turbo Overboost");
+      if (this.Dataframe.DTC0 & 0x10) f.push("Ambient Air Temp");
+      if (this.Dataframe.DTC0 & 0x20) f.push("Fuel Rail Temp Sensor");
+      if (this.Dataframe.DTC0 & 0x40) f.push("Knock Fault Detected");
+
+      if (this.Dataframe.DTC1 & 0x01) f.push("Coolant Temp Gauge");
+      if (this.Dataframe.DTC1 & 0x02) f.push("Fuel Pump Circuit");
+      if (this.Dataframe.DTC1 & 0x04) f.push("Air Con");
+      if (this.Dataframe.DTC1 & 0x08) f.push("Purge Valve");
+      if (this.Dataframe.DTC1 & 0x10) f.push("MAP Sensor");
+      if (this.Dataframe.DTC1 & 0x20) f.push("Boost Valve");
+      if (this.Dataframe.DTC1 & 0x40) f.push("Throttle Position Sensor");
+      if (this.Dataframe.LambdaStatus === 1) f.push("Lambda Status");
+
+      if (this.Dataframe.DTC2 & 0x04) f.push("Lambda Heater");
+      if (this.Dataframe.DTC2 & 0x08) f.push("Secondary Trigger Sync");
+      if (this.Dataframe.DTC2 & 0x10) f.push("Fan 1 Control");
+      if (this.Dataframe.DTC2 & 0x40) f.push("Fan 2 Control");
+      if (this.Dataframe.DTC3 & 0x01) f.push("Primary Trigger Sync");
+      return f;
+    },
+    MPH() {
+      return ((this.Dataframe.EngineRPM / 1000.0) * this.gearing[this.gear]).toFixed(1);
+    },
+    KPH() {
+      return this.Mph2Kph(this.MPH);
+    },
+    ft_lb() {
+      return (this.Nm / 1.36).toFixed(1);
+    },
+    hp() {
+      return ((this.ft_lb / 5252) * this.Dataframe.EngineRPM).toFixed(1);
+    },
     chartKey() {
       return this.replay.pause ? false : this.stopwatch;
     },
@@ -223,39 +284,76 @@ export default {
       return { width: document.body.clientWidth, height: 250 };
     },
     stopwatchFormat() {
-      return this.timeFormat(this.stopwatch * 1000);
-    }
+      return this.timeFormat(this.stopwatch);
+    },
   },
   watch: {
     "Dataframe.Time"(before, after) {
       if (before && after) {
-        let delta = before.split(":")[2] - after.split(":")[2];
-        delta = delta.toFixed(1);
-        this.stopwatch += Number(delta);
-        this.history.push({ Time: this.stopwatchFormat, EngineRPM: this.Dataframe.EngineRPM, LambdaVoltage: this.Dataframe.LambdaVoltage });
+        // to do fix this calc - use moment?
+        let delta = this.hhmmss2secs(before) - this.hhmmss2secs(after);
+        this.stopwatch = Number(this.stopwatch + delta);
+        let EngineRPM = this.Dataframe.EngineRPM;
         if (this.history.length > 20) this.history.shift();
+        let rpmD1 = ((EngineRPM - this.lastEngineRPM) / delta).toFixed(0);
+        let rpmD2 = ((EngineRPM - this.lastEngineRPM) / delta / delta).toFixed(0);
+        this.dist = ((this.KPH * 1000.0) / 3600.0).toFixed(2);
+        this.deltaDist = (this.dist - this.lastDist).toFixed(3);
+        if (this.deltaDist > 0) this.Nm = ((this.deltaDist / delta) * this.weightKg).toFixed(2);
+        this.gForce = (this.deltaDist / delta / delta).toFixed(1);
+        if (this.Dataframe.IdleSwitch === 0) {
+          this.gear = 0;
+        } else {
+          if (rpmD2 > 600 || this.gear === 0) {
+            this.gear++;
+            this.rpmD2.max.push(rpmD2);
+            Math.max(rpmD2, this.rpmD2.max);
+          }
+          if (rpmD2 < -650) {
+            this.gear--;
+            if (this.gear < 0) {
+              this.gear = 0;
+              this.debug("False downchange");
+            }
+            this.rpmD2.min.push(rpmD2);
+            // = Math.min(rpmD2, this.rpmD2.min);
+          }
+        }
+        this.rpmD1 = rpmD1;
+        this.rpmD2.val = rpmD2;
+        this.lastEngineRPM = EngineRPM;
+        this.lastDist = this.dist;
+        this.history.push({
+          Time: this.stopwatchFormat,
+          EngineRPM: this.Dataframe.EngineRPM,
+          LambdaVoltage: this.Dataframe.LambdaVoltage,
+          rpmD2: rpmD2,
+          gear: this.gear,
+        });
       }
     },
   },
 
   mounted: function () {
+    this.simulateStart(0);
     //this.dumpImportReadmemsHex();
     //this.parseD1("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
     //this.parseD0("d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
   },
   methods: {
-    timeFormat(t) {
-      let now = new Date();
-      now.setTime(t + 12 * 3600000);
-      let ms = now.getMilliseconds().toString(10).padStart(3, "0");
-      let d = `${now.toLocaleTimeString()}.${ms}`;
-
-      return d.substring(1, 10);
+    Mph2Kph(MPH) {
+      return Number((MPH / 50.0) * 80).toFixed(1);
     },
-    simulateStart() {
+    hhmmss2secs(t) {
+      return t.split(":").reduce((acc, time) => 60 * acc + +time);
+    },
+    timeFormat(t) {
+      return new Date(t * 1000).toISOString().substr(14, 7);
+    },
+    simulateStart(step = 0) {
       // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
-      this.replay.step = 0;
-      this.replay.timer = setInterval(() => this.simulate(), 500);
+      this.replay.step = step;
+      this.replay.timer = setInterval(() => this.simulate(), this.replay.interval);
       this.simulate();
       this.ECUID = imported_data.Name;
       // Slider for speed - realtime option
@@ -388,6 +486,7 @@ export default {
           DTC4: v.getUint8(0x11 + offset),
           IgnitionAdvanceOffset7d: v.getUint8(0x12 + offset) - 48,
           IdleSpeedOffset: v.getUint8(0x13 + offset),
+          //IdleSpeedOffset: v.getInt8(0x13 + offset),
           Uk7d14: v.getUint8(0x14 + offset),
           Uk7d15: v.getUint8(0x15 + offset),
           DTC5: v.getUint8(0x16 + offset),
@@ -424,8 +523,7 @@ export default {
           FuelTemp: v.getUint8(0x06 + offset) - 55.0,
           ManifoldAbsolutePressure: v.getUint8(0x07 + offset),
           BatteryVoltage: (v.getUint8(0x08 + offset) / 10.0).toFixed(2),
-          ThrottlePotSensor: (v.getUint8(0x09 + offset) * 0.02).toFixed(2),
-          ThrottlePosition: (v.getUint8(0x09 + offset) * 0.02).toFixed(2), // calc as 0 - 90 ? x79_02  ThrottleAngle
+          ThrottlePosition: (v.getUint8(0x09 + offset) * 0.02).toFixed(2),
           IdleSwitch: v.getUint8(0x0a + offset),
           AirconSwitch: v.getUint8(0x0b + offset),
           ParkNeutralSwitch: v.getUint8(0x0c + offset),
@@ -471,8 +569,12 @@ export default {
     },
 
     async sendToEcu(bytes) {
+      this.queuedBytes.push(bytes);
+    },
+
+    async sendBytes(bytes) {
       if (this.ser.port) {
-        //this.debug({ bytes: bytes });
+        this.waitReply = true;
         let writer = this.ser.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
         writer.releaseLock();
@@ -653,13 +755,15 @@ export default {
       }
     },
     async openSerialPort() {
-      //  let ports = await navigator.serial.getPorts();
-      //    this.debug(ports);
-      //      let info = ports[0].getInfo();
-
+          
+          navigator.serial.addEventListener("connect", (event) => {
+  console.log({e:event});
+  debug;
+});
       this.ser.port = await navigator.serial.requestPort();
       this.debug(this.ser.port.getInfo());
-
+ let ports = await navigator.serial.getPorts();
+      
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
@@ -681,7 +785,12 @@ export default {
 
         try {
           while (true) {
+            if (!this.waitReply && this.queuedBytes.length) {
+              this.expectingBytes = this.queuedBytes.pop();
+              this.sendBytes(this.expectingBytes);
+            }
             const { value, done } = await this.ser.reader.read();
+            this.waitReply = 0;
 
             if (done) {
               this.debug("serial this.ser.reader done");
@@ -691,9 +800,16 @@ export default {
             this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
             if (start === null) start = value[0];
             switch (start) {
+              case 0x1b:
+                // 1b5b41 up arrow key test com port
+                this.debug('up arrow')
+                this.ser.buffer = "";
+                start = null;
+                break;
               case 0x80:
-                if (this.ser.buffer.length < 60) {
-                  //this.debug( `expected 60 (${this.ser.buffer.length}) bytes for 0x80`   );
+                this.expectedBytes = 60;
+                if (this.ser.buffer.length < this.expectedBytes) {
+                  this.debug(`expected 60 (${this.ser.buffer.length}) bytes for 0x80`);
                   break;
                 }
                 if (this.ser.buffer.length != 60) {
@@ -703,20 +819,19 @@ export default {
                   return;
                 }
 
-                this.ser.buffer = this.ser.buffer.substring(2);
-                this.Dataframe.Dataframe80 = this.ser.buffer;
-                // Patch size for https://analysis.memsfcr.co.uk/
-                //let Mems1_6_7d ="7d20" + this.Dataframe.Dataframe7d.substring(4, 66);
+                this.Dataframe.Dataframe80 = this.ser.buffer.substring(2, 60);
+                // Save rest of buffer
+
                 this.log.MemsData.push({
                   Time: this.Dataframe.Time,
                   Dataframe80: this.Dataframe.Dataframe80,
                   Dataframe7d: this.Dataframe.Dataframe7d,
-                  //Dataframe7d: Mems1_6_7d,
                 });
                 this.parse80(this.hexToBytes(this.ser.buffer));
-                //this.sendToEcu([0x7d]); // trigger next frame
-                this.ser.buffer = "";
-                start = null;
+                this.ser.buffer = this.ser.buffer.substring(60);
+                if (this.ser.buffer.length) {
+                  value = parseInt(this.ser.buffer.substring(60), 2);
+                } else start = null;
                 break;
               case 0x00: {
                 this.debug(`<< ${this.ser.buffer}`);
@@ -983,6 +1098,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   <div class="fixed-top">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-sm">
+        <img style="height: 3rem" class="mr-2" src="./assets/lotus-badge.png" />
         <a class="navbar-brand" href="/">MEMS 1.9 Diagnostic ⚙️ </a>
         <div class="navbar-text">
           <small>{{ appVersion }}</small>
@@ -1002,6 +1118,102 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       </div>
     </nav>
   </div>
+
+  <div class="card-group text-center">
+    <div class="card" @keyup.enter="simulatePause()">
+      <div class="card-body">
+        <h6 class="card-title">Time</h6>
+        <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 v-if="0" class="card-title">RPM</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
+        Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
+        <!--Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
+      {{ rpmD2.min }} <br> {{ rpmD2.max }}<br /> -->
+        MPH: {{ MPH }} KPH: {{ KPH }} <br />
+        Δ {{ deltaDist }}m <br />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
+        Nm: {{ Nm }} <br />
+        {{ gForce }}g<br />
+        hp: {{ hp }}
+        <br />
+        ft/lb {{ ft_lb }}
+      </div>
+    </div>
+  </div>
+
+  <div v-if="0" class="card-group text-center mt-2">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Short Term Fuel Trim</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Ignition Advance</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Battery Voltage</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.BatteryVoltage }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <!--    <VueSvgGauge
+  :start-angle="-110"
+  :end-angle="110"
+  :value="3"
+  :separator-step="1"
+  :min="0"
+  :max="4"
+  :gauge-color="[{ offset: 0, color: '#347AB0'}, { offset: 100, color: '#8CDFAD'}]"
+  :scale-interval="0.1"
+/>
+-->
+  <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
+    <template #layers>
+      <Grid strokeDasharray="2,2" />
+      <Line :dataKeys="['Time', 'EngineRPM']" type="natural" />
+      <Line :dataKeys="['Time', 'LambdaVoltage']" type="natural" :lineStyle="{ stroke: 'red' }" />
+      <Line :dataKeys="['Time', 'rpmD2']" type="natural" :lineStyle="{ stroke: 'green' }" />
+    </template>
+
+    <template #widgets>
+      <Tooltip
+        borderColor="#48CAE4"
+        :config="{
+          Time: { hide: true },
+          EngineRPM: { color: '#0077b6' },
+          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
+          rpmD2: { label: 'd2', color: 'green' },
+          gear: { label: 'gear', color: 'black' },
+        }"
+      />
+    </template>
+  </Chart>
+
+  <p v-if="faults.length">
+    <label>Faults: </label>
+    <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
+      {{ fault }}
+    </span>
+  </p>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
 
@@ -1040,83 +1252,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <i class="fas fa-play"></i>
   </button>
 
-  <div class="card-group text-center">
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Time</h6>
-        <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">RPM</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
-      </div>
-    </div>
-  </div>
-
-  <div class="card-group text-center mt-2">
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Short Term Fuel Trim</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Ignition Advance</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Battery Voltage</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.BatteryVoltage }}</h3>
-      </div>
-    </div>
-  </div>
-
-  <br />
-  <!--    <VueSvgGauge
-  :start-angle="-110"
-  :end-angle="110"
-  :value="3"
-  :separator-step="1"
-  :min="0"
-  :max="4"
-  :gauge-color="[{ offset: 0, color: '#347AB0'}, { offset: 100, color: '#8CDFAD'}]"
-  :scale-interval="0.1"
-/>
--->
-  <Chart :key="chartKey" :size="chartSize" :data="history" direction="horizontal">
-    <template #layers>
-      <Grid strokeDasharray="2,2" />
-      <Area :dataKeys="['Time', 'EngineRPM']" type="monotone" :areaStyle="{ fill: 'url(#grad)' }" />
-      <Line :dataKeys="['Time', 'EngineRPM']" />
-      <Line :dataKeys="['Time', 'LambdaVoltage']" :lineStyle="{ stroke: 'red' }" />
-    </template>
-
-    <template #widgets>
-      <Tooltip
-        borderColor="#48CAE4"
-        :config="{
-          Time: { hide: true },
-          EngineRPM: { color: '#0077b6' },
-          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
-        }"
-      />
-    </template>
-  </Chart>
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">All Data</button>
@@ -1206,7 +1341,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
   <div class="card-columns mt-4">
     <div class="card" v-for="param in parameters" v-bind:key="param">
-      <div class="card-body">
+      <div class="card-body pt-0 pb-0">
         {{ param }}
         <span class="badge badge-dark text-monospace float-right">{{ Dataframe[param] }}</span>
       </div>
@@ -1224,4 +1359,5 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
   <pre>{{ debug_log.join("\n") }}</pre>
 </template>
-<style lang="scss"></style>
+<style lang="scss">
+</style>
