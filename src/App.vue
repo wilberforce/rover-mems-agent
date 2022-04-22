@@ -335,7 +335,7 @@ export default {
   },
 
   mounted: function () {
-    this.simulateStart(0);
+    //this.simulateStart(0);
     //this.dumpImportReadmemsHex();
     //this.parseD1("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
     //this.parseD0("d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
@@ -569,12 +569,15 @@ export default {
     },
 
     async sendToEcu(bytes) {
-      this.queuedBytes.push(bytes);
+      //this.queuedBytes.push(bytes);
+      this.sendBytes(bytes);
     },
 
     async sendBytes(bytes) {
+      let hex=this.hex(Array.from(bytes));
+      this.debug(`>> ${hex}`);
       if (this.ser.port) {
-        this.waitReply = true;
+        //this.waitReply = true;
         let writer = this.ser.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
         writer.releaseLock();
@@ -754,16 +757,139 @@ export default {
         }
       }
     },
-    async openSerialPort() {
+/*
+    d0d0c70005cb7d7d21400aff910058ffff0100706400007bff002e807b1e0023
+App.vue:590 default:
+App.vue:590 << c023c023c023c00000
+*/
+    async openSerialPortChunked() {
+      this.ser.port = await navigator.serial.requestPort();
+
+      await this.ser.port.open({
+        baudRate: 9600,
+        databits: 8,
+        bufferSize: 35,
+        parity: "none",
+        stopbits: 1,
+        flowControl: "none",
+      });
+      this.debug(this.ser.port);
+
+      this.sendToEcu([0xd0]);
+
+      this.pollDataframes();
+      //https://stackoverflow.com/questions/70920727/read-usb-serial-port-data-with-web-serial-api-in-javascript
+
+      // https://streams.spec.whatwg.org/#rs-intro
+      while (this.ser.port.readable) {
+        const reader = this.ser.port.readable.getReader();//({ mode: "byob" });
+
+        let startingAB = new Uint8Array(35);
+        const buffer = await readInto(startingAB);
+        let hex=this.hex(new Uint8Array(buffer));
+         this.debug(`<< ${hex}`);
+  
+      reader.releaseLock();
           
-          navigator.serial.addEventListener("connect", (event) => {
-  console.log({e:event});
-  debug;
-});
+        async function readInto(buffer) {
+          let offset = 0;
+//console.log( offset, buffer.byteLength)
+
+          while (offset < buffer.byteLength) {
+            const { value: view, done } = await reader.read(new Uint8Array(buffer, offset, buffer.byteLength - offset));
+            buffer = view.buffer;
+            if (done) {
+              console.log('done')
+              break;
+            }
+            offset += view.byteLength;
+          }
+//console.log( offset, buffer.byteLength)
+          return buffer;
+        }
+      }
+    },
+    /*
+    >> 7d
+<< 0000500021400091057001070640000008000023
+<< 023023023000
+>> 7d
+<< 0021400091057001070640000008000023023023023
+<< 000
+
+"Dataframe80":"
+801c05ff8b9a72ff1786331080011000041b873202a7025b083e100000",
+"Dataframe7d":"
+7d214018ff910052ffff0101717800041bff002e7f82aa00238023802380238001"},
+>> 80
+<< 80800000000647221080110002886854023000000
+>> 7d
+<< 00214000910580010706400000080
+<< 00023023023023
+<< 000
+
+>> 80
+<< 80800000000647221080110002886854023000000
+>> 7d
+<< 0021400091057001070640000008000023023023023
+<< 000
+>> 80
+<< 80800000000647221080110002886854023000000
+>> 7d
+<< 00214000910570010706400000
+<< 08000023023023023
+<< 000
+>> 80
+<< 80800000000647221080110002886854023000000
+>> 7d
+<< 0
+<< 021400091058001070640000008000023023023023
+<< 000
+>> d0
+<< 000050
+>> d1
+<< 00004833563030350050004833563030350050004833563030350050
+>> d0
+<< 0000
+<< 50
+>> d1
+<< 00004833563030350050004833563030350050004833563030350050
+>> d1
+<< 000048335630303500500048335630303500500048335630
+<< 30350050
+>> f4
+<< 000
+>> f4
+<< 000
+>> d1
+<< 000048335630303500500048335630303500500048335630
+<< 30350050
+>> d1
+<< 00004833
+<< 5630303500500048335630303500500048335630
+<< 30350050
+>> d0
+<< 000050
+>> 80
+<< 80800000000647221080110002886854023000000
+>> 7d
+<< 0021400091057001070640000008000023023023023
+<< 000
+>> 7d80
+<< 08080000000064722108011000288685402
+<< 3000000
+>> f4
+<< 000
+*/
+    async openSerialPort() {
+      navigator.serial.addEventListener("connect", (event) => {
+        console.log({ e: event });
+        debug;
+      });
       this.ser.port = await navigator.serial.requestPort();
       this.debug(this.ser.port.getInfo());
- let ports = await navigator.serial.getPorts();
-      
+      let ports = await navigator.serial.getPorts();
+
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
@@ -783,6 +909,7 @@ export default {
         this.ser.reader = this.ser.port.readable.getReader();
         this.debug("waiting on data...");
 
+        //https://stackoverflow.com/questions/70920727/read-usb-serial-port-data-with-web-serial-api-in-javascript
         try {
           while (true) {
             if (!this.waitReply && this.queuedBytes.length) {
@@ -802,7 +929,7 @@ export default {
             switch (start) {
               case 0x1b:
                 // 1b5b41 up arrow key test com port
-                this.debug('up arrow')
+                this.debug(`Arrow << ${this.ser.buffer}`);
                 this.ser.buffer = "";
                 start = null;
                 break;
@@ -899,7 +1026,7 @@ export default {
                 let ms = now.getMilliseconds().toString(10).padStart(3, "0");
                 this.Dataframe.Time = `${now.toLocaleTimeString()}.${ms}`;
                 this.parse7D(this.hexToBytes(this.ser.buffer));
-                this.sendToEcu([0x80]); // trigger next frame
+                //this.sendToEcu([0x80]); // trigger next frame
                 this.ser.buffer = "";
                 start = null;
                 break;
@@ -1215,7 +1342,9 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     </span>
   </p>
 
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortChunked()">Open Serial Port new</button>
+
+<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit5baud()">5 Baud Init</button>
