@@ -46,7 +46,7 @@ export default {
         step: 0,
         pause: false,
         interval: 333,
-        port: null
+        port: null,
       },
       record: {
         timer: null,
@@ -358,6 +358,47 @@ export default {
       this.simulate();
       this.ECUID = imported_data.Name;
       // Slider for speed - realtime option
+    },
+    async replaySerialStart(step = 0) {
+      this.replay.port = await navigator.serial.requestPort();
+
+      await this.replay.port.open({
+        baudRate: 9600,
+        databits: 8,
+        bufferSize: 128,
+        parity: "none",
+        stopbits: 1,
+        flowControl: "none",
+      });
+      // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
+      this.replay.step = step;
+      this.replay.timer = setInterval(() => this.replaySerial(), this.replay.interval);
+      this.replaySerial();
+      this.ECUID = imported_data.Name;
+      // Slider for speed - realtime option
+    },
+
+    replaySerial() {
+      if (imported_data.MemsData.length >= this.replay.step) {
+        let data = imported_data.MemsData[this.replay.step];
+        if (data && this.replay.port) {
+          let x7d = "7d21" + data.Dataframe7d.substring(4).padEnd(66, "0");
+
+          let writer = this.replay.port.writable.getWriter();
+          writer.write(this.hexToBytes(x7d));
+          //writer.write(this.hexToBytes(data.Dataframe80));
+          writer.releaseLock();
+
+          this.replay.step++;
+        } else {
+          this.replaySerialStop();
+        }
+      }
+    },
+    replaySerialStop() {
+      clearInterval(this.replay.timer);
+      this.replay.timer = null;
+      this.replay.step = 0;
     },
     simulate() {
       if (this.replay.pause) return;
@@ -1368,6 +1409,11 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     Stop
   </button>
 
+  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="replaySerialStart()">
+    <i class="fas fa-refresh"></i>
+    Replay Serial
+  </button>
+
   <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStart()">
     <i class="fas fa-refresh"></i>
     Replay
@@ -1496,4 +1542,4 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 .card-columns {
   column-count: 6;
 }
-  </style>
+</style>
