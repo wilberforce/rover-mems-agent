@@ -1,9 +1,9 @@
 <script lang="ts">
 //import imported_data from "./data/run-demo.fcr.json";
-//import imported_data from "./data/run-1649820449532.fcr.json";
+import imported_data from "./data/run-1649820449532.fcr.json";
 //import imported_data from "./data/run-1649822529717.fcr.json";
 
-import imported_data from "./data/nofaults.fcr.json";
+//import imported_data from "./data/nofaults.fcr.json";
 import { Chart, Grid, Line, Tooltip } from "vue3-charts";
 import { VueSvgGauge } from "vue-svg-gauge";
 
@@ -46,6 +46,7 @@ export default {
         step: 0,
         pause: false,
         interval: 333,
+        port: null
       },
       record: {
         timer: null,
@@ -186,44 +187,42 @@ export default {
         "BatteryVoltage",
         "ThrottlePosition",
         "IdleSwitch",
-        "AirconSwitch",
-        "ParkNeutralSwitch",
         "DTC0",
         "DTC1",
         "IdleSetPoint",
         "IdleHot",
-        "Uk8011",
         "IACPosition",
         "IdleSpeedDeviation",
         "IgnitionAdvanceOffset80",
         "IgnitionAdvance",
         "CoilTime",
         "CrankshaftPositionSensor",
-        "Uk801a",
-        "Uk801b",
         "IgnitionSwitch",
         "ThrottleAngle",
-        "Uk7d03",
         "AirFuelRatio",
-        "DTC2",
         "LambdaVoltage",
-        "LambdaFrequency",
-        "LambdaDutycycle",
         "LambdaStatus",
         "ClosedLoop",
         "LongTermFuelTrim",
         "ShortTermFuelTrim",
         "FuelTrimCorrection",
         "CarbonCanisterPurgeValve",
-        "DTC3",
         "IdleBasePosition",
-        "Uk7d10",
+        "AirconSwitch",
+        "ParkNeutralSwitch",
+        "DTC2",
+        "DTC3",
         "DTC4",
-        "IgnitionAdvanceOffset7d",
+        "DTC5",
         "IdleSpeedOffset",
+        "IgnitionAdvanceOffset7d",
+        "JackCount",
+        "LambdaDutycycle",
+        "LambdaFrequency",
+        "Uk7d03",
+        "Uk7d10",
         "Uk7d14",
         "Uk7d15",
-        "DTC5",
         "Uk7d17",
         "Uk7d18",
         "Uk7d19",
@@ -232,8 +231,10 @@ export default {
         "Uk7d1c",
         "Uk7d1d",
         "Uk7d1e",
-        "JackCount",
         "Uk7d20",
+        "Uk8011",
+        "Uk801a",
+        "Uk801b",
       ],
       debug_log: [],
     };
@@ -256,7 +257,7 @@ export default {
       if (this.Dataframe.DTC1 & 0x10) f.push("MAP Sensor");
       if (this.Dataframe.DTC1 & 0x20) f.push("Boost Valve");
       if (this.Dataframe.DTC1 & 0x40) f.push("Throttle Position Sensor");
-      if (this.Dataframe.LambdaStatus === 1) f.push("Lambda Status");
+      if (this.Dataframe.LambdaStatus === 0) f.push("Lambda Status");
 
       if (this.Dataframe.DTC2 & 0x04) f.push("Lambda Heater");
       if (this.Dataframe.DTC2 & 0x08) f.push("Secondary Trigger Sync");
@@ -574,7 +575,7 @@ export default {
     },
 
     async sendBytes(bytes) {
-      let hex=this.hex(Array.from(bytes));
+      let hex = this.hex(Array.from(bytes));
       this.debug(`>> ${hex}`);
       if (this.ser.port) {
         //this.waitReply = true;
@@ -757,7 +758,7 @@ export default {
         }
       }
     },
-/*
+    /*
     d0d0c70005cb7d7d21400aff910058ffff0100706400007bff002e807b1e0023
 App.vue:590 default:
 App.vue:590 << c023c023c023c00000
@@ -782,29 +783,29 @@ App.vue:590 << c023c023c023c00000
 
       // https://streams.spec.whatwg.org/#rs-intro
       while (this.ser.port.readable) {
-        const reader = this.ser.port.readable.getReader();//({ mode: "byob" });
+        const reader = this.ser.port.readable.getReader(); //({ mode: "byob" });
 
         let startingAB = new Uint8Array(35);
         const buffer = await readInto(startingAB);
-        let hex=this.hex(new Uint8Array(buffer));
-         this.debug(`<< ${hex}`);
-  
-      reader.releaseLock();
-          
+        let hex = this.hex(new Uint8Array(buffer));
+        this.debug(`<< ${hex}`);
+
+        reader.releaseLock();
+
         async function readInto(buffer) {
           let offset = 0;
-//console.log( offset, buffer.byteLength)
+          //console.log( offset, buffer.byteLength)
 
           while (offset < buffer.byteLength) {
             const { value: view, done } = await reader.read(new Uint8Array(buffer, offset, buffer.byteLength - offset));
             buffer = view.buffer;
             if (done) {
-              console.log('done')
+              console.log("done");
               break;
             }
             offset += view.byteLength;
           }
-//console.log( offset, buffer.byteLength)
+          //console.log( offset, buffer.byteLength)
           return buffer;
         }
       }
@@ -956,9 +957,12 @@ App.vue:590 << c023c023c023c00000
                 });
                 this.parse80(this.hexToBytes(this.ser.buffer));
                 this.ser.buffer = this.ser.buffer.substring(60);
+                /*
                 if (this.ser.buffer.length) {
                   value = parseInt(this.ser.buffer.substring(60), 2);
                 } else start = null;
+                */
+                start = null;
                 break;
               case 0x00: {
                 this.debug(`<< ${this.ser.buffer}`);
@@ -1344,7 +1348,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortChunked()">Open Serial Port new</button>
 
-<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit5baud()">5 Baud Init</button>
@@ -1489,4 +1493,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   <pre>{{ debug_log.join("\n") }}</pre>
 </template>
 <style lang="scss">
-</style>
+.card-columns {
+  column-count: 6;
+}
+  </style>
