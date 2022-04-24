@@ -47,6 +47,7 @@ export default {
         pause: false,
         interval: 333,
         port: null,
+        reader: null
       },
       record: {
         timer: null,
@@ -335,11 +336,15 @@ export default {
     },
   },
 
-  mounted: function () {
+  mounted() {
     //this.simulateStart(0);
     //this.dumpImportReadmemsHex();
     //this.parseD1("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
     //this.parseD0("d04b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
+  },
+  async unmounted() {
+    await this.closeSerialPort();
+    await this.replaySerialClose();
   },
   methods: {
     Mph2Kph(MPH) {
@@ -365,25 +370,61 @@ export default {
       await this.replay.port.open({
         baudRate: 9600,
         databits: 8,
-        bufferSize: 128,
+        bufferSize: 16,
         parity: "none",
         stopbits: 1,
         flowControl: "none",
       });
       // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
       this.replay.step = step;
-      this.replay.timer = setInterval(() => this.replaySerial(), this.replay.interval);
+      this.replay.timer = setInterval(() => this.replaySerial(), 5000); //this.replay.interval);
       this.replaySerial();
       this.ECUID = imported_data.Name;
       // Slider for speed - realtime option
+
+      while (this.replay.port.readable) {
+        this.replay.reader = this.replay.port.readable.getReader();
+
+        let startingAB = new Uint8Array(35);
+        const buffer = await readInto(startingAB);
+        let hex = this.hex(new Uint8Array(buffer));
+        this.debug(`<<ecu ${hex}`);
+
+        this.replay.reader.releaseLock();
+
+        let reader=this.replay.reader;
+        async function readInto(buffer) {
+          let offset = 0;
+          //console.log( offset, buffer.byteLength)
+
+          while (offset < buffer.byteLength) {
+            const { value: view, done } = await reader.read(new Uint8Array(buffer, offset, buffer.byteLength - offset));
+            buffer = view.buffer;
+            if (done) {
+              console.log("done");
+              break;
+            }
+            offset += view.byteLength;
+          }
+          //console.log( offset, buffer.byteLength)
+          return buffer;
+        }
+      }
+    },
+    async replaySerialClose() {
+      if (this.replay.reader) {
+        await this.replay.reader.cancel();
+      }
+      if (this.replay.port) await this.replay.port.close();
+      this.replay.port=null;
     },
 
     replaySerial() {
       if (imported_data.MemsData.length >= this.replay.step) {
         let data = imported_data.MemsData[this.replay.step];
         if (data && this.replay.port) {
-          let x7d = "7d21" + data.Dataframe7d.substring(4).padEnd(66, "0");
-
+          let x7d = "7d7d21" + data.Dataframe7d.substring(4).padEnd(68, "0");
+          console.log(x7d);
           let writer = this.replay.port.writable.getWriter();
           writer.write(this.hexToBytes(x7d));
           //writer.write(this.hexToBytes(data.Dataframe80));
@@ -395,7 +436,7 @@ export default {
         }
       }
     },
-    replaySerialStop() {
+    async replaySerialStop() {
       clearInterval(this.replay.timer);
       this.replay.timer = null;
       this.replay.step = 0;
@@ -436,52 +477,6 @@ export default {
     recordStop() {
       clearInterval(this.record.timer);
       this.record.timer = null;
-    },
-    dumpImportReadmemsHex() {
-      //  Past raw, generate csv and then over-paste the times
-      //memscene.exe -file run-1649731232340.raw -output run-1649731232340.csv
-      let odd = 0;
-      this.debug(
-        imported_data.MemsData.map((x) => {
-          return x.Time;
-        }).join("\n")
-      );
-      let q = imported_data.MemsData[0].Dataframe7d;
-      let y = q
-        .substring(2)
-        .split("")
-        .map(function (o) {
-          let sep = odd % 2 ? " " : "";
-          odd++;
-          return o + sep;
-        });
-      odd = 0;
-      this.debug(
-        "ECU responded to D0 command with: 99 00 02 03\n" +
-          imported_data.MemsData.map((x) => {
-            return (
-              "80: " +
-              x.Dataframe80.substring(2)
-                .split("")
-                .map(function (o) {
-                  let sep = odd % 2 ? " " : "";
-                  odd++;
-                  return o + sep;
-                })
-                .join("") +
-              "\n7D: " +
-              "20 " +
-              x.Dataframe7d.substring(5, 67)
-                .split("")
-                .map(function (o) {
-                  let sep = odd % 2 ? " " : "";
-                  odd++;
-                  return o.toUpperCase() + sep;
-                })
-                .join("")
-            );
-          }).join("\n")
-      );
     },
     parseD0(data) {
       let bytes = this.hexToBytes(data);
@@ -653,7 +648,7 @@ export default {
       if (this.ser.reader) {
         await this.ser.reader.cancel();
       }
-      await this.ser.port.close();
+      if (this.ser.port) await this.ser.port.close();
       this.ser.reader = null;
       this.ser.port = null;
       this.ser.mode = 0;
@@ -715,6 +710,10 @@ export default {
         });
 
       let start = performance.now();
+
+      this.debug('Clear line');
+      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.wait(2000);
 
       for (let i = 0; i < 10; i++) {
         this.sendToEcu([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
@@ -829,7 +828,7 @@ App.vue:590 << c023c023c023c00000
         let startingAB = new Uint8Array(35);
         const buffer = await readInto(startingAB);
         let hex = this.hex(new Uint8Array(buffer));
-        this.debug(`<< ${hex}`);
+        this.debug(`GOT << ${hex}`);
 
         reader.releaseLock();
 
@@ -1440,8 +1439,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xf4])">
       <i class="fa fa-heart"></i>
     </button>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xf3])">Mode 4</button>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xf0])">Current Mode (14 - mode 3)</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xca])">0xca init</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd0])">ECU SER</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd1])">ECU ID/SER</button>
