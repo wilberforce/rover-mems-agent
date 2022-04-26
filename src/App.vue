@@ -383,9 +383,7 @@ export default {
 
       this.replay.step = step;
 
-      this.replay.timer = setInterval(() => this.replaySerial(), 10000); //this.replay.interval);
       this.replaySerial();
-      this.ECUID = imported_data.Name;
 
       this.replay.reader = this.replay.port.readable.getReader();
 
@@ -495,13 +493,15 @@ export default {
       this.replay.pause = !this.replay.pause;
     },
     pollDataframes() {
-      this.sendToEcu([0x7d]);
+      this.sendToEcu([0x7d,0x80]);
     },
     recordStart() {
+      this.recordStop();
       this.record.timer = setInterval(() => this.pollDataframes(), 500);
     },
     recordStop() {
-      clearInterval(this.record.timer);
+      if ( this.record.timer )
+        clearInterval(this.record.timer);
       this.record.timer = null;
     },
     parseD0(data) {
@@ -844,6 +844,7 @@ export default {
       this.sendToEcu([0xd0]);
 
       this.pollDataframes();
+
       //https://stackoverflow.com/questions/70920727/read-usb-serial-port-data-with-web-serial-api-in-javascript
 
       // https://streams.spec.whatwg.org/#rs-intro
