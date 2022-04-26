@@ -47,7 +47,7 @@ export default {
         pause: false,
         interval: 333,
         port: null,
-        reader: null
+        reader: null,
       },
       record: {
         timer: null,
@@ -292,7 +292,6 @@ export default {
   watch: {
     "Dataframe.Time"(before, after) {
       if (before && after) {
-        // to do fix this calc - use moment?
         let delta = this.hhmmss2secs(before) - this.hhmmss2secs(after);
         this.stopwatch = Number(this.stopwatch + delta);
         let EngineRPM = this.Dataframe.EngineRPM;
@@ -347,6 +346,12 @@ export default {
     await this.replaySerialClose();
   },
   methods: {
+    Time() {
+      let now = new Date();
+      let ms = now.getMilliseconds().toString(10).padStart(3, "0");
+      return `${now.toLocaleTimeString()}.${ms}`;
+    },
+
     Mph2Kph(MPH) {
       return Number((MPH / 50.0) * 80).toFixed(1);
     },
@@ -357,7 +362,7 @@ export default {
       return new Date(t * 1000).toISOString().substr(14, 7);
     },
     simulateStart(step = 0) {
-      // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
+
       this.replay.step = step;
       this.replay.timer = setInterval(() => this.simulate(), this.replay.interval);
       this.simulate();
@@ -375,62 +380,83 @@ export default {
         stopbits: 1,
         flowControl: "none",
       });
-      // this.parseD1( "d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c48335630");
+
       this.replay.step = step;
-      this.replay.timer = setInterval(() => this.replaySerial(), 5000); //this.replay.interval);
+
+      this.replay.timer = setInterval(() => this.replaySerial(), 10000); //this.replay.interval);
       this.replaySerial();
       this.ECUID = imported_data.Name;
-      // Slider for speed - realtime option
 
-      while (this.replay.port.readable) {
-        this.replay.reader = this.replay.port.readable.getReader();
+      this.replay.reader = this.replay.port.readable.getReader();
 
-        let startingAB = new Uint8Array(35);
-        const buffer = await readInto(startingAB);
-        let hex = this.hex(new Uint8Array(buffer));
-        this.debug(`<<ecu ${hex}`);
+      while (true) {
+        const { value, done } = await this.replay.reader.read();
+        if (value) {
+          let hex=(this.hex(Array.from(value)));
+          switch (value[0]) {
+              case 0x80:
+                let data = imported_data.MemsData[this.replay.step];
 
-        this.replay.reader.releaseLock();
+                this.replayWrite(data.Dataframe80);
+                this.replay.step++;
+              case 0x7d:
+                this.replaySerial();
+                break;
+              case 0xd0:
+                this.replayWrite("d04b4c4833");
+                break;
+              case 0xd1:
+                this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
+                break;
+              default:
 
-        let reader=this.replay.reader;
-        async function readInto(buffer) {
-          let offset = 0;
-          //console.log( offset, buffer.byteLength)
 
-          while (offset < buffer.byteLength) {
-            const { value: view, done } = await reader.read(new Uint8Array(buffer, offset, buffer.byteLength - offset));
-            buffer = view.buffer;
-            if (done) {
-              console.log("done");
-              break;
-            }
-            offset += view.byteLength;
-          }
-          //console.log( offset, buffer.byteLength)
-          return buffer;
+          console.log(`cmd: ${hex}`);
+        }
+        }
+        if (done) {
+          console.log("[readLoop] DONE", done);
+          reader.releaseLock();
+          break;
         }
       }
+
     },
     async replaySerialClose() {
       if (this.replay.reader) {
         await this.replay.reader.cancel();
       }
       if (this.replay.port) await this.replay.port.close();
-      this.replay.port=null;
+      this.replay.port = null;
     },
+    replayWrite(data) {
+      if (this.replay.port) {
+        data = data[0] + data[1] + data;
 
+        let bytes = new Uint8Array(this.hexToBytes(data));
+        let hex = this.hex(Array.from(bytes));
+
+        this.debug(`<<ecu ${hex}`);
+
+        let writer = this.replay.port.writable.getWriter();
+        writer.write(Uint8Array.from(bytes));
+        writer.releaseLock();
+      }
+    },
     replaySerial() {
       if (imported_data.MemsData.length >= this.replay.step) {
         let data = imported_data.MemsData[this.replay.step];
         if (data && this.replay.port) {
-          let x7d = "7d7d21" + data.Dataframe7d.substring(4).padEnd(68, "0");
-          console.log(x7d);
-          let writer = this.replay.port.writable.getWriter();
-          writer.write(this.hexToBytes(x7d));
-          //writer.write(this.hexToBytes(data.Dataframe80));
-          writer.releaseLock();
-
-          this.replay.step++;
+          let x7d = "7d21" + data.Dataframe7d;
+          if (data.Dataframe7d.length < 66) {
+            // Patch mems 1.6 frame
+            x7d = "7d21" + data.Dataframe7d.substring(4).padEnd(66, "0");
+          }
+          this.replayWrite(x7d);
+          setTimeout(() => {
+            this.replayWrite(data.Dataframe80);
+            this.replay.step++;
+          }, 100);
         } else {
           this.replaySerialStop();
         }
@@ -585,7 +611,7 @@ export default {
       let bytes = new ArrayBuffer(hex.length / 2);
       var view = new DataView(bytes);
       for (let c = 0; c < hex.length; c += 2) view.setUint8(c / 2, parseInt(hex.substr(c, 2), 16));
-      return bytes;
+      return bytes; //new Uint8Array(bytes);
     },
     async sleep(ms) {
       await new Promise((resolve) => setTimeout(resolve, ms));
@@ -621,7 +647,11 @@ export default {
       }
     },
     hex(bytes, delim = "") {
-      return bytes.map((x) => x.toString(16).padStart(2, "0")).join(delim);
+      let result = bytes.map((x) => {
+        let h = x.toString(16).padStart(2, "0");
+        return h;
+      });
+      return result.join(delim);
     },
     debug(msg) {
       console.log(msg);
@@ -711,7 +741,7 @@ export default {
 
       let start = performance.now();
 
-      this.debug('Clear line');
+      this.debug("Clear line");
       await this.ser.port.setSignals({ brk: false, break: false });
       await this.wait(2000);
 
@@ -798,11 +828,6 @@ export default {
         }
       }
     },
-    /*
-    d0d0c70005cb7d7d21400aff910058ffff0100706400007bff002e807b1e0023
-App.vue:590 default:
-App.vue:590 << c023c023c023c00000
-*/
     async openSerialPortChunked() {
       this.ser.port = await navigator.serial.requestPort();
 
@@ -823,105 +848,98 @@ App.vue:590 << c023c023c023c00000
 
       // https://streams.spec.whatwg.org/#rs-intro
       while (this.ser.port.readable) {
-        const reader = this.ser.port.readable.getReader(); //({ mode: "byob" });
+        this.ser.reader = this.ser.port.readable.getReader();
 
-        let startingAB = new Uint8Array(35);
-        const buffer = await readInto(startingAB);
-        let hex = this.hex(new Uint8Array(buffer));
-        this.debug(`GOT << ${hex}`);
-
-        reader.releaseLock();
-
-        async function readInto(buffer) {
-          let offset = 0;
-          //console.log( offset, buffer.byteLength)
-
-          while (offset < buffer.byteLength) {
-            const { value: view, done } = await reader.read(new Uint8Array(buffer, offset, buffer.byteLength - offset));
-            buffer = view.buffer;
-            if (done) {
-              console.log("done");
-              break;
-            }
-            offset += view.byteLength;
+        let cmd = 0;
+        let buffer = "";
+        let len_cmd = 0;
+        let dataframe: ArrayBuffer[] = [];
+        while (1) {
+          const { value, done } = await this.ser.reader.read();
+          if (done) {
+            console.log("done");
+            break;
           }
-          //console.log( offset, buffer.byteLength)
-          return buffer;
+          let inbound = Array.from(value);
+          let hex = this.hex(inbound);
+          //this.debug(`GOT << ${hex.length / 2}: ${hex}`);
+          if (len_cmd == 0) {
+            cmd = inbound[0];
+            buffer = hex;
+            dataframe = inbound;
+            switch (cmd) {
+              case 0x80:
+              case 0x7d:
+                // Need to handle case of single byte
+                console.log("got len: ", value[2]);
+                if (inbound.length > 2) len_cmd = inbound[2]+2;
+                break;
+              case 0xd0:
+                len_cmd = 6;
+                break;
+              case 0xd1:
+                len_cmd = 41;
+                break;
+              default:
+                console.log("reset value: ", value[0].toString(16));
+                len_cmd = 0;
+                break;
+            }
+          } else {
+            let required = len_cmd - dataframe.length;
+            buffer = buffer + hex;
+            // Should only add what is needed...
+            dataframe.push(...inbound);
+            console.log(`buffer ${buffer.length}: ${buffer}`);
+          }
+          if (dataframe.length >= len_cmd) {
+            //let data = buffer.substring(0, len_cmd * 2);
+            let data = this.hex(dataframe);
+            console.log(`process ${data} buffer: ${dataframe.length} cmd:${len_cmd}`);
+            switch (cmd) {
+              case 0x80:
+                 if (data.length > 4) {
+                console.log(this.hexToBytes(data.substring(2)));
+                this.parse80(this.hexToBytes(data.substring(2)));
+                this.Dataframe.Dataframe80 = data.substring(2);
+                } else {
+                  console.log(`80: short! {data.length}`);
+                }
+                break;
+              case 0x7d:
+                if (data.length > 4) {
+                  this.parse7D(this.hexToBytes(data.substring(2)));
+                
+                  this.Dataframe.Time = this.Time();
+                  this.Dataframe.Dataframe7d = data.substring(2);
+                } else {
+                  console.log(`7d: short! {data.length}`);
+                }
+
+                break;
+              case 0xd0:
+                this.parseD0(data.substring(2));
+                break;
+              case 0xd1:
+                this.parseD1(data.substring(2));
+                break;
+              default:
+                break;
+            }
+            console.log(dataframe);
+            buffer = buffer.substring(len_cmd * 2);
+            len_cmd = 0;
+            if (buffer.length) {
+              console.log(`reset size: ${buffer}`);
+            }
+            dataframe = [];
+          }
         }
+        this.ser.reader.releaseLock();
+        console.log("released lock");
+        this.closeSerialPort();
       }
     },
-    /*
-    >> 7d
-<< 0000500021400091057001070640000008000023
-<< 023023023000
->> 7d
-<< 0021400091057001070640000008000023023023023
-<< 000
-
-"Dataframe80":"
-801c05ff8b9a72ff1786331080011000041b873202a7025b083e100000",
-"Dataframe7d":"
-7d214018ff910052ffff0101717800041bff002e7f82aa00238023802380238001"},
->> 80
-<< 80800000000647221080110002886854023000000
->> 7d
-<< 00214000910580010706400000080
-<< 00023023023023
-<< 000
-
->> 80
-<< 80800000000647221080110002886854023000000
->> 7d
-<< 0021400091057001070640000008000023023023023
-<< 000
->> 80
-<< 80800000000647221080110002886854023000000
->> 7d
-<< 00214000910570010706400000
-<< 08000023023023023
-<< 000
->> 80
-<< 80800000000647221080110002886854023000000
->> 7d
-<< 0
-<< 021400091058001070640000008000023023023023
-<< 000
->> d0
-<< 000050
->> d1
-<< 00004833563030350050004833563030350050004833563030350050
->> d0
-<< 0000
-<< 50
->> d1
-<< 00004833563030350050004833563030350050004833563030350050
->> d1
-<< 000048335630303500500048335630303500500048335630
-<< 30350050
->> f4
-<< 000
->> f4
-<< 000
->> d1
-<< 000048335630303500500048335630303500500048335630
-<< 30350050
->> d1
-<< 00004833
-<< 5630303500500048335630303500500048335630
-<< 30350050
->> d0
-<< 000050
->> 80
-<< 80800000000647221080110002886854023000000
->> 7d
-<< 0021400091057001070640000008000023023023023
-<< 000
->> 7d80
-<< 08080000000064722108011000288685402
-<< 3000000
->> f4
-<< 000
-*/
     async openSerialPort() {
       navigator.serial.addEventListener("connect", (event) => {
         console.log({ e: event });
@@ -934,7 +952,7 @@ App.vue:590 << c023c023c023c00000
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
-        bufferSize: 128,
+        //bufferSize: 128,
         parity: "none",
         stopbits: 1,
         flowControl: "none",
@@ -957,7 +975,7 @@ App.vue:590 << c023c023c023c00000
               this.expectingBytes = this.queuedBytes.pop();
               this.sendBytes(this.expectingBytes);
             }
-            const { value, done } = await this.ser.reader.read();
+            let { value, done } = await this.ser.reader.read();
             this.waitReply = 0;
 
             if (done) {
@@ -977,7 +995,7 @@ App.vue:590 << c023c023c023c00000
               case 0x80:
                 this.expectedBytes = 60;
                 if (this.ser.buffer.length < this.expectedBytes) {
-                  this.debug(`expected 60 (${this.ser.buffer.length}) bytes for 0x80`);
+                  this.debug(`expected 60 (${this.ser.buffer.length}) bytes for 0x80 got ${this.ser.buffer}`);
                   break;
                 }
                 if (this.ser.buffer.length != 60) {
@@ -995,13 +1013,14 @@ App.vue:590 << c023c023c023c00000
                   Dataframe80: this.Dataframe.Dataframe80,
                   Dataframe7d: this.Dataframe.Dataframe7d,
                 });
-                this.parse80(this.hexToBytes(this.ser.buffer));
+                this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
+
                 this.ser.buffer = this.ser.buffer.substring(60);
-                /*
+
                 if (this.ser.buffer.length) {
                   value = parseInt(this.ser.buffer.substring(60), 2);
                 } else start = null;
-                */
+
                 start = null;
                 break;
               case 0x00: {
@@ -1054,21 +1073,20 @@ App.vue:590 << c023c023c023c00000
                 break;
               }
               case 0x7d:
-                if (this.ser.buffer.length < 70) {
-                  //this.debug(  `expected 70 (${this.ser.buffer.length}) bytes for 0x7d` );
+                if (this.ser.buffer.length < 72) {
+                  this.debug(`expected 72 (${this.ser.buffer.length}) bytes for 0x7d got ${this.ser.buffer}`);
                   break;
                 }
-                if (this.ser.buffer.length != 70) {
+                if (this.ser.buffer.length != 72) {
+                  this.debug(`rejected 0x7d << ${this.ser.buffer} ${this.ser.buffer.length}`);
                   this.ser.buffer = "";
                   start = null;
-                  this.debug(`rejected << ${this.ser.buffer}`);
                   return;
                 }
                 this.ser.buffer = this.ser.buffer.substring(2);
                 this.Dataframe.Dataframe7d = this.ser.buffer;
-                let now = new Date();
-                let ms = now.getMilliseconds().toString(10).padStart(3, "0");
-                this.Dataframe.Time = `${now.toLocaleTimeString()}.${ms}`;
+
+                this.Dataframe.Time = this.Time();
                 this.parse7D(this.hexToBytes(this.ser.buffer));
                 //this.sendToEcu([0x80]); // trigger next frame
                 this.ser.buffer = "";
@@ -1357,28 +1375,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   :scale-interval="0.1"
 />
 -->
-  <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
-    <template #layers>
-      <Grid strokeDasharray="2,2" />
-      <Line :dataKeys="['Time', 'EngineRPM']" type="natural" />
-      <Line :dataKeys="['Time', 'LambdaVoltage']" type="natural" :lineStyle="{ stroke: 'red' }" />
-      <Line :dataKeys="['Time', 'rpmD2']" type="natural" :lineStyle="{ stroke: 'green' }" />
-    </template>
-
-    <template #widgets>
-      <Tooltip
-        borderColor="#48CAE4"
-        :config="{
-          Time: { hide: true },
-          EngineRPM: { color: '#0077b6' },
-          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
-          rpmD2: { label: 'd2', color: 'green' },
-          gear: { label: 'gear', color: 'black' },
-        }"
-      />
-    </template>
-  </Chart>
-
   <p v-if="faults.length">
     <label>Faults: </label>
     <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
@@ -1430,6 +1426,27 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <i class="fas fa-play"></i>
   </button>
 
+  <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
+    <template #layers>
+      <Grid strokeDasharray="2,2" />
+      <Line :dataKeys="['Time', 'EngineRPM']" type="natural" />
+      <Line :dataKeys="['Time', 'LambdaVoltage']" type="natural" :lineStyle="{ stroke: 'red' }" />
+      <Line :dataKeys="['Time', 'rpmD2']" type="natural" :lineStyle="{ stroke: 'green' }" />
+    </template>
+
+    <template #widgets>
+      <Tooltip
+        borderColor="#48CAE4"
+        :config="{
+          Time: { hide: true },
+          EngineRPM: { color: '#0077b6' },
+          LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
+          rpmD2: { label: 'd2', color: 'green' },
+          gear: { label: 'gear', color: 'black' },
+        }"
+      />
+    </template>
+  </Chart>
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">All Data</button>
@@ -1501,8 +1518,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     </div>
 
     <div class="btn-group mr-2" role="group">
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x81])">clearing (auto?) adjustments 0x81</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7f])">- 0x7f</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7f])">- 0x7f !!</button>
 
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1512,8 +1528,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7e])">+ 0x7e</button>
     </div>
   </div>
-
-  <pre>{{ debug_log.join("\n") }}</pre>
 
   <div class="card-columns mt-4">
     <div class="card" v-for="param in parameters" v-bind:key="param">
@@ -1533,7 +1547,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   >
   <br />
 
-  <pre>{{ debug_log.join("\n") }}</pre>
+  <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
 </template>
 <style lang="scss">
 .card-columns {
