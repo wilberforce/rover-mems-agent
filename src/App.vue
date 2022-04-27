@@ -820,7 +820,7 @@ export default {
         }
       }
     },
-    CmdLength(cmd, inbound) {
+    CmdLength(cmd, inbound, len_cmd) {
       switch (cmd) {
         case 0x00:
           return 3; //psuedo command - 5 baud echo
@@ -881,7 +881,7 @@ export default {
               cmd = inbound[0];
               buffer = hex;
               dataframe = inbound;
-              len_cmd = this.CmdLength(cmd, inbound);
+              len_cmd = this.CmdLength(cmd, inbound, len_cmd);
             } else {
               let required = len_cmd - dataframe.length;
               let rest = inbound;
@@ -891,7 +891,7 @@ export default {
                 dataframe.push(...inbound);
                 inbound = rest;
                 cmd = inbound[0];
-                len_cmd = this.CmdLength(cmd, inbound);
+                len_cmd = this.CmdLength(cmd, inbound, len_cmd);
               } else {
                 dataframe.push(...inbound);
               }
