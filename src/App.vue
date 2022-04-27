@@ -1,7 +1,7 @@
 <script lang="ts">
 //import imported_data from "./data/run-demo.fcr.json";
-import imported_data from "./data/run-1649820449532.fcr.json";
-//import imported_data from "./data/run-1649822529717.fcr.json";
+//import imported_data from "./data/run-1649820449532.fcr.json";
+import imported_data from "./data/run-1649822529717.fcr.json";
 
 //import imported_data from "./data/nofaults.fcr.json";
 import { Chart, Grid, Line, Tooltip } from "vue3-charts";
@@ -337,7 +337,7 @@ export default {
 
   mounted() {},
   async unmounted() {
-    await this.closeSerialPort();
+    //await this.closeSerialPort();
     await this.replaySerialClose();
   },
   methods: {
@@ -376,8 +376,6 @@ export default {
       });
 
       this.replay.step = step;
-
-      this.replaySerial();
 
       this.replay.reader = this.replay.port.readable.getReader();
 
@@ -626,15 +624,15 @@ export default {
     },
 
     async sendToEcu(bytes) {
-      //this.queuedBytes.push(bytes);
-      this.sendBytes(bytes);
+      if (!this.waitReply) {
+        this.sendBytes(bytes);
+        this.waitReply = true;
+      } else this.queuedBytes.push(...bytes);
     },
 
     async sendBytes(bytes) {
       let hex = this.hex(Array.from(bytes));
-      this.debug(`>> ${hex}`);
       if (this.ser.port) {
-        //this.waitReply = true;
         let writer = this.ser.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
         writer.releaseLock();
@@ -822,7 +820,28 @@ export default {
         }
       }
     },
-    async openSerialPortChunked() {
+    CmdLength(cmd, inbound) {
+      switch (cmd) {
+        case 0x00:
+          return 3; //psuedo command - 5 baud echo
+
+        case 0x80:
+          if (inbound.length > 2) return inbound[2] + 2;
+          return len_cmd;
+        case 0x7d:
+          // Need to handle case of single byte
+          if (inbound.length > 2) return inbound[2] + 3;
+          return len_cmd;
+        case 0xd0:
+          return 6;
+        case 0xd1:
+          return 38;
+        default:
+          console.log(`Cmd: ${cmd.toString(16).padStart(2, "0")}`);
+          return 2;
+      }
+    },
+    async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
 
       await this.ser.port.open({
@@ -833,329 +852,102 @@ export default {
         stopbits: 1,
         flowControl: "none",
       });
-      this.debug(this.ser.port);
-
-      this.sendToEcu([0xd0]);
-
+      this.sendToEcu([0xd1]);
       this.pollDataframes();
 
-      //https://stackoverflow.com/questions/70920727/read-usb-serial-port-data-with-web-serial-api-in-javascript
-
-      // https://streams.spec.whatwg.org/#rs-intro
-      while (this.ser.port.readable) {
+      while (this.ser.port?.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
-
+        if (!this.waitReply && this.queuedBytes.length) {
+          this.expectingBytes = this.queuedBytes.pop();
+          this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
+          this.sendBytes([this.expectingBytes]);
+        }
         let cmd = 0;
         let buffer = "";
         let len_cmd = 0;
         let dataframe: ArrayBuffer[] = [];
         let going = true;
-        while (going) {
-          const { value, done } = await this.ser.reader.read();
-          if (done) {
-            console.log("done");
-            going = false;
-            break;
-          }
-          let inbound = Array.from(value);
-          let hex = this.hex(inbound);
-          //this.debug(`GOT << ${hex.length / 2}: ${hex}`);
-          function CmdLength(cmd) {
-            switch (cmd) {
-              case 0x00:
-                return 3; //psuedo command - 5 baud echo
-
-              case 0x80:
-                if (inbound.length > 2) return inbound[2] + 2;
-                return len_cmd;
-                break;
-              case 0x7d:
-                // Need to handle case of single byte
-                if (inbound.length > 2) return inbound[2] + 3;
-                return len_cmd;
-                break;
-              case 0xd0:
-                return 6;
-                break;
-              case 0xd1:
-                return 38;
-                break;
-              default:
-                console.log("reset value: ", value[0].toString(16));
-                return 0;
-                break;
-            }
-          }
-          if (len_cmd == 0) {
-            cmd = inbound[0];
-            buffer = hex;
-            dataframe = inbound;
-            len_cmd = CmdLength(cmd);
-          } else {
-            let required = len_cmd - dataframe.length;
-            let rest = inbound;
-            if (inbound.length > required) {
-              let rest = inbound.slice(required);
-              inbound = inbound.slice(0, required);
-              dataframe.push(...inbound);
-              inbound = rest;
-              cmd = inbound[0];
-              len_cmd = CmdLength(cmd);
-            } else {
-              dataframe.push(...inbound);
-            }
-          }
-          if (dataframe.length >= len_cmd) {
-            //let data = buffer.substring(0, len_cmd * 2);
-            let data = this.hex(dataframe);
-            console.log(`process ${data} buffer: cmd:${len_cmd}`);
-            switch (cmd) {
-              case 0x00:
-                this.sendToEcu([0x55, 0x76, 0x83]);
-                break;
-              case 0xca:
-                this.sendToEcu([0x75]);
-                break;
-              case 0x75:
-                this.sendToEcu([0xf4]);
-                break;
-              case 0xf4:
-                this.sendToEcu([0xd0]);
-                break;
-              case 0x7d:
-                if (data.length > 4) {
-                  this.sendToEcu([0x80]); // Trigger next dataframe
-                  console.log(`Parse << ${data.substring(2)}`);
-                  this.parse7D(this.hexToBytes(data.substring(2)));
-
-                  this.Dataframe.Time = this.Time();
-                  this.Dataframe.Dataframe7d = data.substring(2);
-                } else {
-                  console.log(`7d: short! {data.length}`);
-                }
-                break;
-              case 0x80:
-                if (data.length > 4) {
-                  console.log(`Parse << ${data.substring(2)}`);
-                  this.parse80(this.hexToBytes(data.substring(2)));
-                  this.Dataframe.Dataframe80 = data.substring(2);
-                } else {
-                  console.log(`80: short! {data.length}`);
-                }
-                break;
-              case 0xd0:
-                this.parseD0(data.substring(2));
-                break;
-              case 0xd1:
-                this.parseD1(data.substring(2));
-                break;
-              default:
-                break;
-            }
-            console.log(dataframe);
-            buffer = buffer.substring(len_cmd * 2);
-            len_cmd = 0;
-            if (buffer.length) {
-              console.log(`reset size: ${buffer}`);
-            }
-            dataframe = [];
-          }
-        }
-        debugger;
-        this.ser.reader.releaseLock();
-        console.log("released lock");
-        this.closeSerialPort();
-      }
-    },
-    async openSerialPort() {
-      navigator.serial.addEventListener("connect", (event) => {
-        console.log({ e: event });
-        debug;
-      });
-      this.ser.port = await navigator.serial.requestPort();
-      this.debug(this.ser.port.getInfo());
-      let ports = await navigator.serial.getPorts();
-
-      await this.ser.port.open({
-        baudRate: 9600,
-        databits: 8,
-        //bufferSize: 128,
-        parity: "none",
-        stopbits: 1,
-        flowControl: "none",
-      });
-      this.debug(this.ser.port);
-
-      this.sendToEcu([0xd0]);
-
-      this.pollDataframes();
-
-      let start = null;
-      while (this.ser.port.readable) {
-        this.ser.reader = this.ser.port.readable.getReader();
-        this.debug("waiting on data...");
-
-        //https://stackoverflow.com/questions/70920727/read-usb-serial-port-data-with-web-serial-api-in-javascript
         try {
-          while (true) {
-            if (!this.waitReply && this.queuedBytes.length) {
-              this.expectingBytes = this.queuedBytes.pop();
-              this.sendBytes(this.expectingBytes);
-            }
-            let { value, done } = await this.ser.reader.read();
-            this.waitReply = 0;
-
+          while (going) {
+            const { value, done } = await this.ser.reader.read();
             if (done) {
-              this.debug("serial this.ser.reader done");
-              return;
+              console.log("done");
+              going = false;
+              break;
             }
-
-            this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
-            if (start === null) start = value[0];
-            switch (start) {
-              case 0x1b:
-                // 1b5b41 up arrow key test com port
-                this.debug(`Arrow << ${this.ser.buffer}`);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              case 0x80:
-                this.expectedBytes = 60;
-                if (this.ser.buffer.length < this.expectedBytes) {
-                  this.debug(`expected 60 (${this.ser.buffer.length}) bytes for 0x80 got ${this.ser.buffer}`);
+            let inbound = Array.from(value);
+            let hex = this.hex(inbound);
+            if (len_cmd == 0) {
+              cmd = inbound[0];
+              buffer = hex;
+              dataframe = inbound;
+              len_cmd = this.CmdLength(cmd, inbound);
+            } else {
+              let required = len_cmd - dataframe.length;
+              let rest = inbound;
+              if (inbound.length > required) {
+                let rest = inbound.slice(required);
+                inbound = inbound.slice(0, required);
+                dataframe.push(...inbound);
+                inbound = rest;
+                cmd = inbound[0];
+                len_cmd = this.CmdLength(cmd, inbound);
+              } else {
+                dataframe.push(...inbound);
+              }
+            }
+            if (dataframe.length >= len_cmd) {
+              this.waitReply = false; // Allow commands to be sent
+              //let data = buffer.substring(0, len_cmd * 2);
+              let data = this.hex(dataframe);
+              switch (cmd) {
+                case 0x00:
+                  this.sendToEcu([0x55, 0x76, 0x83]);
                   break;
-                }
-                if (this.ser.buffer.length != 60) {
-                  this.ser.buffer = "";
-                  start = null;
-                  this.debug(`rejected << ${this.ser.buffer}`);
-                  return;
-                }
-
-                this.Dataframe.Dataframe80 = this.ser.buffer.substring(2, 60);
-                // Save rest of buffer
-
-                this.log.MemsData.push({
-                  Time: this.Dataframe.Time,
-                  Dataframe80: this.Dataframe.Dataframe80,
-                  Dataframe7d: this.Dataframe.Dataframe7d,
-                });
-                this.parse80(this.hexToBytes(this.Dataframe.Dataframe80));
-
-                this.ser.buffer = this.ser.buffer.substring(60);
-
-                if (this.ser.buffer.length) {
-                  value = parseInt(this.ser.buffer.substring(60), 2);
-                } else start = null;
-
-                start = null;
-                break;
-              case 0x00: {
-                this.debug(`<< ${this.ser.buffer}`);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-
-              case 0x55: {
-                //let send = start ^ 0xff;
-
-                this.debug(`1.9 ECU woke up - init stage 1, << ${this.ser.buffer} >> ca`);
-                this.sendToEcu([0xca]);
-                await this.sleep(100);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-
-              case 0xca: {
-                this.debug(`Stage 2 << ${this.ser.buffer} >> 75`);
-                this.sendToEcu([0x75]);
-
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-
-              case 0x75: {
-                this.debug(`Stage 3 << ${this.ser.buffer} >> F4`);
-                this.sendToEcu([0xf4]);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-              case 0xf4: {
-                this.debug(`Stage 4 ${this.ser.buffer}`);
-                this.sendToEcu([0xd0]);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-              case 0xd0: {
-                //d0d0c70005cb
-                this.debug(`Got ID ${this.ser.buffer}`);
-                this.debug(this.ser.buffer);
-                this.ser.buffer = "";
-                start = null;
-                break;
-              }
-              case 0x7d:
-                if (this.ser.buffer.length < 72) {
-                  this.debug(`expected 72 (${this.ser.buffer.length}) bytes for 0x7d got ${this.ser.buffer}`);
+                case 0xca:
+                  this.sendToEcu([0x75]);
                   break;
-                }
-                if (this.ser.buffer.length != 72) {
-                  this.debug(`rejected 0x7d << ${this.ser.buffer} ${this.ser.buffer.length}`);
-                  this.ser.buffer = "";
-                  start = null;
-                  return;
-                }
-                this.ser.buffer = this.ser.buffer.substring(2);
-                this.Dataframe.Dataframe7d = this.ser.buffer;
-
-                this.Dataframe.Time = this.Time();
-                this.parse7D(this.hexToBytes(this.ser.buffer));
-                //this.sendToEcu([0x80]); // trigger next frame
-                this.ser.buffer = "";
-                start = null;
-                break;
-              case 0xd0:
-                if (this.ser.buffer.length < 4) {
-                  this.debug(`expected 64 bytes for 0xd0, got ${this.ser.buffer.length}`);
+                case 0x75:
+                  this.sendToEcu([0xf4]);
                   break;
-                }
-                this.debug(`0xd0 << ${this.ser.buffer.length}`);
-                this.ser.buffer = this.ser.buffer.substring(2);
-                this.parseD0(this.ser.buffer);
-                this.ser.buffer = "";
-                start = null;
-                break;
+                case 0xf4:
+                  this.sendToEcu([0xd0]);
+                  break;
+                case 0x7d:
+                  if (data.length > 4) {
+                    this.sendToEcu([0x80]); // Trigger next dataframe
+                    this.parse7D(this.hexToBytes(data.substring(2)));
 
-              case 0xd1:
-                // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb 70!
-                if (this.ser.buffer.length < 60) {
-                  this.debug(`expected 60+ bytes for 0xd1, got ${this.ser.buffer.length}`);
-                  if (this.ser.buffer.length == 2) {
-                    this.ser.buffer = "";
-                    start = null;
-                    // gone wrong - reset
+                    this.Dataframe.Time = this.Time();
+                    this.Dataframe.Dataframe7d = data.substring(2);
+                  } else {
+                    console.log(`7d: short! {data.length}`);
                   }
                   break;
-                }
-                this.ser.buffer = this.ser.buffer.substring(2);
-                this.parseD1(this.ser.buffer);
-                this.ser.buffer = "";
-                start = null;
-                break;
-
-              default: {
-                //read=read.substring(2);
-                this.debug("default:", this.ser.buffer);
-                this.debug(`<< ${this.ser.buffer}`);
-
-                start = null;
-                this.ser.buffer = "";
+                case 0x80:
+                  if (data.length > 4) {
+                    this.parse80(this.hexToBytes(data.substring(2)));
+                    this.Dataframe.Dataframe80 = data.substring(2);
+                  } else {
+                    console.log(`80: short! {data.length}`);
+                  }
+                  break;
+                case 0xd0:
+                  this.parseD0(data.substring(2));
+                  break;
+                case 0xd1:
+                  this.parseD1(data.substring(2));
+                  break;
+                default:
+                  break;
               }
+              buffer = buffer.substring(len_cmd * 2);
+              len_cmd = 0;
+              if (buffer.length) {
+                console.log(`reset size: ${buffer}`);
+                this.waitReply = false;
+              }
+              dataframe = [];
             }
           }
         } catch (error) {
@@ -1165,6 +957,7 @@ export default {
           this.ser.reader.releaseLock();
           this.ser.reader = null;
           this.debug("released lock");
+          await this.wait(1000);
         }
       }
     },
@@ -1213,7 +1006,7 @@ export default {
       // debug(new Date().getTime()-before);
       resetTimeout(3000);
 
-      parseDataBufferSlowInit();
+      //parseDataBufferSlowInit();
     },
     async wakeUp5Baud(ecuAddress, sleepMs) {
       // 5 baud/200ms per bit
@@ -1409,12 +1202,10 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     </span>
   </p>
 
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortChunked()">Open Serial Port new</button>
-
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort()">Open Serial Port</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit5baud()">5 Baud Init</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">5 Baud Init</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
     <i class="fas fa-download"></i>
@@ -1452,6 +1243,8 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
     <i class="fas fa-play"></i>
   </button>
+
+  Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">All Data</button>
@@ -1567,6 +1360,6 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 </template>
 <style lang="scss">
 .card-columns {
-  column-count: 5;
+  column-count: 4;
 }
 </style>
