@@ -640,7 +640,7 @@ export default {
       let log = this.log;
 
       let now = new Date();
-      log.Name = `run-${now.getTime()}.fcr`;
+      log.Name = `run-${now.getTime()}.fcr.json`;
       log.Count = log.MemsData.length;
       log.Date = now.toISOString();
       log.ECUSerial = this.ECUSerial;
@@ -879,6 +879,11 @@ try {
               len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
             } else {
               let required = len_cmd - dataframe.length;
+              if ( required < 0 ) {
+                this.debug('cmd length error');
+                let len_cmd=0
+                required=0;
+              }
               if (inbound.length >= required) {
 
                 rest = inbound.slice(required);
@@ -910,7 +915,7 @@ try {
                   break;
                 case 0x7d:
                   if (data.length > 4) {
-                    //this.sendToEcu([0x80]); // Trigger next dataframe
+                    this.sendToEcu([0x80]); // Trigger next dataframe
                     this.parse7D(this.hexToBytes(data.substring(2)));
 
                     this.Dataframe.Time = this.Time();
@@ -957,6 +962,11 @@ try {
                 
                 dataframe.push(...rest);
                 len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+              }
+              if ( dataframe.length >= 40 ) {
+                this.debug('dataframe too long,');
+                len_cmd = 0;
+                dataframe = [];
               }
             }
           }
