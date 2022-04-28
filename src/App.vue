@@ -55,7 +55,7 @@ export default {
       ser: {
         mode: 0,
         port: null,
-        buffer: "",
+        dataframe: [] as number[],
       },
       ECUID: "",
       ECUSerial: "",
@@ -436,18 +436,7 @@ export default {
       if (imported_data.MemsData.length >= this.replay.step) {
         let data = imported_data.MemsData[this.replay.step];
         if (data && this.replay.port) {
-          let x7d = "7d21" + data.Dataframe7d;
-          if (data.Dataframe7d.length < 66) {
-            // Patch mems 1.6 frame
-            x7d = "7d21" + data.Dataframe7d.substring(4).padEnd(66, "0");
-          }
-          this.replayWrite(x7d);
-          /*
-          setTimeout(() => {
-            this.replayWrite(data.Dataframe80);
-            this.replay.step++;
-          }, 100);
-          */
+          this.replayWrite(data.Dataframe7d);
         } else {
           this.replaySerialStop();
         }
@@ -829,17 +818,20 @@ export default {
         }
       }
     },
-    CmdLength(cmd, inbound, len_cmd) {
+    CmdLength(cmd, dataframe, len_cmd) {
       switch (cmd) {
         case 0x00:
-          return 3; //psuedo command - 5 baud echo
+          return 3; //psuedo command - 5 baud echo expect 0x00 0x00 0x00 then reply
 
         case 0x80:
-          if (inbound.length > 2) return inbound[2] + 2;
+          if (dataframe.length > 2) return dataframe[2] + 2;
           return len_cmd;
         case 0x7d:
-          // Need to handle case of single byte
-          if (inbound.length > 2) return inbound[2] + 2;
+          
+          if (dataframe.length > 2) {
+            return 34;  // Why?
+            return dataframe[2] + 2;
+          } // Need to handle case of single byte
           return len_cmd;
         case 0xd0:
           return 6;
@@ -875,7 +867,6 @@ export default {
         }
         */
         let cmd = 0;
-        let buffer = "";
         let len_cmd = 0;
         let dataframe: ArrayBuffer[] = [];
         let going = true;
@@ -891,26 +882,24 @@ export default {
             let hex = this.hex(inbound);
             if (len_cmd == 0) {
               cmd = inbound[0];
-              buffer = hex;
               dataframe = inbound;
-              len_cmd = this.CmdLength(cmd, inbound, len_cmd);
+              len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
             } else {
               let required = len_cmd - dataframe.length;
-              let rest = inbound;
               if (inbound.length > required) {
                 let rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
                 inbound = rest;
                 cmd = inbound[0];
-                len_cmd = this.CmdLength(cmd, inbound, len_cmd);
+                len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
               } else {
                 dataframe.push(...inbound);
               }
             }
-            if (dataframe.length >= len_cmd) {
+            this.ser.dataframe=dataframe;
+            if (dataframe.length == len_cmd) {
               this.waitReply = false; // Allow commands to be sent
-              //let data = buffer.substring(0, len_cmd * 2);
               let data = this.hex(dataframe);
               switch (cmd) {
                 case 0x00:
@@ -934,6 +923,11 @@ export default {
                     this.Dataframe.Dataframe7d = data.substring(2);
                   } else {
                     console.log(`7d: short! ${data.length}`);
+                    if ( data.length == 2 ) {
+                      this.debug('Lost connection...')
+                      len_cmd = 0;
+                      cmd=0x00;
+                    }
                   }
                   break;
                 case 0x80:
@@ -942,6 +936,11 @@ export default {
                     this.Dataframe.Dataframe80 = data.substring(2);
                   } else {
                     console.log(`80: short! ${data.length}`);
+                     if ( data.length == 2 ) {
+                      this.debug('Lost connection...')
+                      len_cmd = 0;
+                      cmd=0x00;
+                    }
                   }
                   break;
                 case 0xd0:
@@ -953,12 +952,7 @@ export default {
                 default:
                   break;
               }
-              buffer = buffer.substring(len_cmd * 2);
               len_cmd = 0;
-              if (buffer.length) {
-                console.log(`reset size: ${buffer}`);
-                this.waitReply = false;
-              }
               dataframe = [];
             }
           }
@@ -1150,13 +1144,14 @@ from the inverted key byte 2 from the tester and the inverted address from the E
 
     <div class="card">
       <div class="card-body">
-        <h6 v-if="0" class="card-title">RPM</h6>
+        <h6 class="card-title">RPM</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
-        Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
-        <!--Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
-      {{ rpmD2.min }} <br> {{ rpmD2.max }}<br /> -->
+        <!-- Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
+       Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
+      {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
         MPH: {{ MPH }} KPH: {{ KPH }} <br />
         Δ {{ deltaDist }}m <br />
+         -->
       </div>
     </div>
 
@@ -1164,11 +1159,13 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       <div class="card-body">
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
+        <!--
         Nm: {{ Nm }} <br />
         {{ gForce }}g<br />
         hp: {{ hp }}
         <br />
         ft/lb {{ ft_lb }}
+        -->
       </div>
     </div>
   </div>
@@ -1256,7 +1253,8 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <i class="fas fa-play"></i>
   </button>
 
-  Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}
+  Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br>
+  {{hex(ser.dataframe)}}
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">All Data</button>
