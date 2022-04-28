@@ -817,8 +817,8 @@ export default {
           return len_cmd;
         case 0x7d:
           if (dataframe.length > 2) {
-            return 34; // Why?
-            return dataframe[2] + 2;
+            
+            return 35//dataframe[2] + 2;
           } // Need to handle case of single byte
           return len_cmd;
         case 0xd0:
@@ -874,7 +874,7 @@ export default {
               len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
             } else {
               let required = len_cmd - dataframe.length;
-              if (inbound.length > required) {
+              if (inbound.length >= required) {
                 let rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
@@ -904,7 +904,7 @@ export default {
                   break;
                 case 0x7d:
                   if (data.length > 4) {
-                    this.sendToEcu([0x80]); // Trigger next dataframe
+                    //this.sendToEcu([0x80]); // Trigger next dataframe
                     this.parse7D(this.hexToBytes(data.substring(2)));
 
                     this.Dataframe.Time = this.Time();
@@ -1247,7 +1247,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   </button>
 
   Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br />
-  {{ hex(ser.dataframe) }}
+  {{ hex(ser.dataframe) }}  {{ser.dataframe.length}}
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
