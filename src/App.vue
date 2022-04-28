@@ -165,18 +165,8 @@ export default {
           CoilFault: false,
           IACPosition: 0,
         },
-
-        //Dataframe7d:
-        //"7d201016ff92401bffff010179670cff51ffff3588840dff134015801a0029c02a",
-        //"7d201014ff924057ffff0100806400ff64ffff3080800eff16801b00220031c01f",
-        //"7d21400aff910057ffff0100716400005aff002e807b690022002200220022000100"
-        //Dataframe80:
-        //"801c08ba80ff56ff1f842308000100002037876b0417055c05df100000",
-        //"801c00006fff4fff64781b00000100002037877b055f05380ca5000000"
         Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        Dataframe7d: "7d2000000000000000000000000000000000000000000000000000000000000000",
-        //Dataframe7d:          "7d20100fff924047ffff0100796400ff6fffff35887f45ff134015801a0029c02a",
-        //Dataframe80:          "801c03d66fff4fff32741b00000100002037877b00a7053807af100000",
+        Dataframe7d: "7d210000000000000000000000000000000000000000000000000000000000000000",
       },
       parameters: [
         "EngineRPM",
@@ -478,7 +468,7 @@ export default {
       this.sendToEcu([0x7d]);
     },
     recordStart() {
-      this.waitReply=false;
+      this.waitReply = false;
       this.recordStop();
       this.record.timer = setInterval(() => this.pollDataframes(), 500);
     },
@@ -618,13 +608,12 @@ export default {
         this.sendBytes(bytes);
         this.waitReply = true;
       } else {
-          this.queuedBytes.push(...bytes);
-          if ( this.queuedBytes.length > 2){
-            this.debug( "cleared queue")
-            this.waitReply=false;
-            this.queuedBytes=[];
-
-          }
+        this.queuedBytes.push(...bytes);
+        if (this.queuedBytes.length > 2) {
+          this.debug("cleared queue");
+          this.waitReply = false;
+          this.queuedBytes = [];
+        }
       }
     },
 
@@ -827,9 +816,8 @@ export default {
           if (dataframe.length > 2) return dataframe[2] + 2;
           return len_cmd;
         case 0x7d:
-          
           if (dataframe.length > 2) {
-            return 34;  // Why?
+            return 34; // Why?
             return dataframe[2] + 2;
           } // Need to handle case of single byte
           return len_cmd;
@@ -856,7 +844,7 @@ export default {
       this.sendToEcu([0xd1]);
       this.pollDataframes();
 
-      this.waitReply=false;
+      this.waitReply = false;
       while (this.ser.port?.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
         /*
@@ -897,7 +885,7 @@ export default {
                 dataframe.push(...inbound);
               }
             }
-            this.ser.dataframe=dataframe;
+            this.ser.dataframe = dataframe;
             if (dataframe.length == len_cmd) {
               this.waitReply = false; // Allow commands to be sent
               let data = this.hex(dataframe);
@@ -923,10 +911,10 @@ export default {
                     this.Dataframe.Dataframe7d = data.substring(2);
                   } else {
                     console.log(`7d: short! ${data.length}`);
-                    if ( data.length == 2 ) {
-                      this.debug('Lost connection...')
+                    if (data.length == 2) {
+                      this.debug("Lost connection...");
                       len_cmd = 0;
-                      cmd=0x00;
+                      cmd = 0x00;
                     }
                   }
                   break;
@@ -934,12 +922,17 @@ export default {
                   if (data.length > 4) {
                     this.parse80(this.hexToBytes(data.substring(2)));
                     this.Dataframe.Dataframe80 = data.substring(2);
+                    this.log.MemsData.push({
+                      Time: this.Dataframe.Time,
+                      Dataframe80: this.Dataframe.Dataframe80,
+                      Dataframe7d: this.Dataframe.Dataframe7d,
+                    });
                   } else {
                     console.log(`80: short! ${data.length}`);
-                     if ( data.length == 2 ) {
-                      this.debug('Lost connection...')
+                    if (data.length == 2) {
+                      this.debug("Lost connection...");
                       len_cmd = 0;
-                      cmd=0x00;
+                      cmd = 0x00;
                     }
                   }
                   break;
@@ -1253,11 +1246,10 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     <i class="fas fa-play"></i>
   </button>
 
-  Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br>
-  {{hex(ser.dataframe)}}
+  Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br />
+  {{ hex(ser.dataframe) }}
   <hr />
   <div>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">All Data</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
 
