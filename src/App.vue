@@ -45,7 +45,7 @@ export default {
         timer: null,
         step: 0,
         pause: false,
-        interval: 500,
+        interval: 1000,
         port: null,
         reader: null,
       },
@@ -489,6 +489,7 @@ export default {
       this.sendToEcu([0x7d]);
     },
     recordStart() {
+      this.waitReply=false;
       this.recordStop();
       this.record.timer = setInterval(() => this.pollDataframes(), 500);
     },
@@ -627,7 +628,15 @@ export default {
       if (!this.waitReply) {
         this.sendBytes(bytes);
         this.waitReply = true;
-      } else this.queuedBytes.push(...bytes);
+      } else {
+          this.queuedBytes.push(...bytes);
+          if ( this.queuedBytes.length > 2){
+            this.debug( "cleared queue")
+            this.waitReply=false;
+            this.queuedBytes=[];
+
+          }
+      }
     },
 
     async sendBytes(bytes) {
@@ -830,7 +839,7 @@ export default {
           return len_cmd;
         case 0x7d:
           // Need to handle case of single byte
-          if (inbound.length > 2) return inbound[2] + 3;
+          if (inbound.length > 2) return inbound[2] + 2;
           return len_cmd;
         case 0xd0:
           return 6;
@@ -855,13 +864,16 @@ export default {
       this.sendToEcu([0xd1]);
       this.pollDataframes();
 
+      this.waitReply=false;
       while (this.ser.port?.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
+        /*
         if (!this.waitReply && this.queuedBytes.length) {
           this.expectingBytes = this.queuedBytes.pop();
           this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
           this.sendBytes([this.expectingBytes]);
         }
+        */
         let cmd = 0;
         let buffer = "";
         let len_cmd = 0;
@@ -921,7 +933,7 @@ export default {
                     this.Dataframe.Time = this.Time();
                     this.Dataframe.Dataframe7d = data.substring(2);
                   } else {
-                    console.log(`7d: short! {data.length}`);
+                    console.log(`7d: short! ${data.length}`);
                   }
                   break;
                 case 0x80:
@@ -929,7 +941,7 @@ export default {
                     this.parse80(this.hexToBytes(data.substring(2)));
                     this.Dataframe.Dataframe80 = data.substring(2);
                   } else {
-                    console.log(`80: short! {data.length}`);
+                    console.log(`80: short! ${data.length}`);
                   }
                   break;
                 case 0xd0:
