@@ -827,7 +827,7 @@ export default {
           return 38;
         default:
           console.log(`Cmd: ${cmd.toString(16).padStart(2, "0")}`);
-          return 2;
+          return 3;
       }
     },
     async openSerialPort() {
@@ -837,7 +837,7 @@ try {
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
-        bufferSize: 12,
+        bufferSize: 64,
         parity: "none",
         stopbits: 1,
         flowControl: "none",
@@ -917,7 +917,7 @@ try {
                   break;
                 case 0x7d:
                   if (data.length > 4) {
-                    this.sendToEcu([0x80]); // Trigger next dataframe
+                    //this.sendToEcu([0x80]); // Trigger next dataframe
                     this.parse7D(this.hexToBytes(data.substring(2)));
 
                     this.Dataframe.Time = this.Time();
@@ -1273,6 +1273,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   {{ hex(ser.dataframe) }}  {{ser.dataframe.length}}
   <hr />
   <div>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d,0x80])">Data 7D/80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
 
