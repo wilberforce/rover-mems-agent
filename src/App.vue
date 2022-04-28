@@ -837,7 +837,7 @@ try {
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
-        //bufferSize: 60,
+        bufferSize: 12,
         parity: "none",
         stopbits: 1,
         flowControl: "none",
@@ -882,7 +882,7 @@ try {
               let required = len_cmd - dataframe.length;
               if ( required < 0 ) {
                 this.debug('cmd length error');
-                let len_cmd=0
+                len_cmd=0
                 required=0;
               }
               if (inbound.length >= required) {
