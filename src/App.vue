@@ -877,6 +877,7 @@ try {
               cmd = inbound[0];
               dataframe = inbound;
               len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`)
             } else {
               let required = len_cmd - dataframe.length;
               if ( required < 0 ) {
@@ -889,11 +890,12 @@ try {
                 rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
-                
+                this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`)
                 
               } else {
                 dataframe.push(...inbound);
                 inbound=[];
+                 this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`)
               }
             }
             this.ser.dataframe = dataframe;
@@ -1339,6 +1341,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
     </div>
   </div>
 
+ <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
     <template #layers>
       <Grid strokeDasharray="2,2" />
@@ -1379,7 +1382,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   >
   <br />
 
-  <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
+ 
 </template>
 <style lang="scss">
 .card-columns {
