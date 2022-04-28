@@ -389,7 +389,7 @@ export default {
               this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
               break;
             default: //Echo
-              this.replayWrite(hex);
+              this.replayWrite(`${hex}01`);
               console.log(`cmd: ${hex}`);
               break;
           }
@@ -863,6 +863,7 @@ try {
         let len_cmd = 0;
         let dataframe: ArrayBuffer[] = [];
         let going = true;
+        let watchdog = null;
         try {
           while (going) {
             const { value, done } = await this.ser.reader.read();
@@ -899,7 +900,23 @@ try {
               }
             }
             this.ser.dataframe = dataframe;
+
+            if ( len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
+              this.watchdog = 
+                setTimeout(() => {
+                  this.watchdog = null;
+                  this.debug(`watchdog timeout ${dataframe.length} ${len_cmd}` );
+                  len_cmd=0
+                  dataframe = [];
+                }, 100);
+              }
+              //this.waitReply = false;
             if (dataframe.length == len_cmd) {
+               if ( this.watchdog) { 
+                 this.debug('watchdog clear');
+                clearTimeout(this.watchdog);
+                this.watchdog = null;
+               }
               this.waitReply = false; // Allow commands to be sent
               let data = this.hex(dataframe);
               switch (cmd) {
@@ -924,7 +941,7 @@ try {
                     this.Dataframe.Dataframe7d = data.substring(2);
                   } else {
                     console.log(`7d: short! ${data.length}`);
-                    if (data.length == 2) {
+                    if (data.length == 1) {
                       this.debug("Lost connection...");
                       len_cmd = 0;
                       cmd = 0x00;
@@ -942,7 +959,7 @@ try {
                     });
                   } else {
                     console.log(`80: short! ${data.length}`);
-                    if (data.length == 2) {
+                    if (data.length == 1) {
                       this.debug("Lost connection...");
                       len_cmd = 0;
                       cmd = 0x00;
@@ -970,7 +987,7 @@ try {
                 len_cmd = 0;
                 dataframe = [];
               }
-            }
+            } 
           }
         } catch (error) {
           this.debug(`error: ${error.message}`);
