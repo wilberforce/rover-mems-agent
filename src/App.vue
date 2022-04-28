@@ -166,7 +166,7 @@ export default {
           IACPosition: 0,
         },
         Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        Dataframe7d: "7d210000000000000000000000000000000000000000000000000000000000000000",
+        Dataframe7d: "7d210000000000000000000000000000000000000000000000000000000000000000"                    
       },
       parameters: [
         "EngineRPM",
@@ -415,7 +415,7 @@ export default {
         let bytes = new Uint8Array(this.hexToBytes(data));
         let hex = this.hex(Array.from(bytes));
 
-        this.debug(`<<ecu ${hex}`);
+        this.debug(`<<ecu ${hex} (${bytes.length} bytes)`);
 
         let writer = this.replay.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
@@ -813,12 +813,12 @@ export default {
           return 3; //psuedo command - 5 baud echo expect 0x00 0x00 0x00 then reply
 
         case 0x80:
-          if (dataframe.length > 2) return dataframe[2] + 2;
+          if (dataframe.length > 2) return dataframe[2] + 2;// command is 0x1c=> 28 + 2 = 30
           return len_cmd;
         case 0x7d:
           if (dataframe.length > 2) {
             
-            return 35//dataframe[2] + 2;
+            return dataframe[2] + 1; // command is 34 0x21=>33 + 1
           } // Need to handle case of single byte
           return len_cmd;
         case 0xd0:
@@ -833,6 +833,7 @@ export default {
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
 
+try {
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
@@ -840,7 +841,11 @@ export default {
         parity: "none",
         stopbits: 1,
         flowControl: "none",
-      });
+      })
+} catch (error) {
+    this.debug('port is already open - refresh page to close')
+  return;
+}
       this.sendToEcu([0xd1]);
       this.pollDataframes();
 
@@ -867,7 +872,7 @@ export default {
               break;
             }
             let inbound = Array.from(value);
-            let hex = this.hex(inbound);
+            let rest = [];
             if (len_cmd == 0) {
               cmd = inbound[0];
               dataframe = inbound;
@@ -875,14 +880,15 @@ export default {
             } else {
               let required = len_cmd - dataframe.length;
               if (inbound.length >= required) {
-                let rest = inbound.slice(required);
+
+                rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
-                inbound = rest;
-                cmd = inbound[0];
-                len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+                
+                
               } else {
                 dataframe.push(...inbound);
+                inbound=[];
               }
             }
             this.ser.dataframe = dataframe;
@@ -947,6 +953,11 @@ export default {
               }
               len_cmd = 0;
               dataframe = [];
+              if ( rest.length) {
+                
+                dataframe.push(...rest);
+                len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+              }
             }
           }
         } catch (error) {
