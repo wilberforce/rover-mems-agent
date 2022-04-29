@@ -618,7 +618,6 @@ export default {
     },
 
     async sendBytes(bytes) {
-      let hex = this.hex(Array.from(bytes));
       if (this.ser.port) {
         let writer = this.ser.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
@@ -687,31 +686,33 @@ export default {
       let sleepMs = 200;
       sleepMs = 200;
       //this.wakeUp5Baud(ecuAddress, sleepMs);
-      //this.wakeUp5BaudNew10bits(ecuAddress,sleepMs)
+      this.wakeUp5BaudNew10bits(ecuAddress,sleepMs)
       //this.wakeUp5BaudNewTiming(ecuAddress,sleepMs)
-      this.slowInit19(ecuAddress, sleepMs);
+      //this.slowInit19(ecuAddress, sleepMs);
     },
 
     async newInit5baud() {
       this.ser.port = await navigator.serial.requestPort();
 
       let ecuAddress = 0x16;
+      //let ecuAddress = 0x55;
       this.debug(`5 Baud..Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`);
       //this.debug(this.ser.port.getInfo());
 
       await this.ser.port.open({
-        baudRate: 600,
+        baudRate: 300,
         databits: 8,
         parity: "even",
         stopbits: 1,
         flowControl: "none",
       });
 
+      //ecuAddress = (ecuAddress << 2) | 1;
       ecuAddress = (ecuAddress << 1) | 1;
 
       let bits = ecuAddress
         .toString(2)
-        .padStart(10, 0)
+        //.padStart(10, 0)
         .split("")
         .reverse()
         .map((x) => {
@@ -724,8 +725,8 @@ export default {
       await this.ser.port.setSignals({ brk: false, break: false });
       await this.wait(2000);
 
-      for (let i = 0; i < 10; i++) {
-        this.sendToEcu([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
+      for (let i = 0; i < 9; i++) {
+        this.sendBytes([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
       }
       this.debug(`time: ${performance.now() - start}\n`);
       const reader = this.ser.port.readable.getReader();
@@ -837,11 +838,12 @@ try {
       await this.ser.port.open({
         baudRate: 9600,
         databits: 8,
-        bufferSize: 64,
+        bufferSize: 128,
         parity: "none",
         stopbits: 1,
         flowControl: "none",
       })
+
 } catch (error) {
     this.debug('port is already open - refresh page to close')
   return;
@@ -1005,14 +1007,20 @@ try {
       let sleepFor = timestampMs - now;
       await new Promise((resolve) => setTimeout(resolve, sleepFor));
     },
+    async waitUntil(timestampMs) {
+  let now = new Date().getTime()
+  let sleepFor = timestampMs-now;
+  // if (ms < 4) { debug("asked to sleep for "+ms+" but minimum will be 4ms+"); }
+  await new Promise(resolve => setTimeout(resolve, sleepFor));
+},
     async slowInit19() {
-      ecuAddress = 0x16; // 22
+      let ecuAddress = 0x16; // 22
 
       //resetTimeout(5000);
-      dataBuffer = [];
+      let dataBuffer = [];
       this.debug("Attempting ECU connection... (address: " + ecuAddress + ") (slow init)");
 
-      debug("Starting slow init, this takes 2 seconds to send");
+      this.debug("Starting slow init, this takes 2 seconds to send");
       // mEcuAddr = 22;
 
       // pause/delay to clear the line
@@ -1043,7 +1051,7 @@ try {
       this.debug("Done sending slow init");
 
       // debug(new Date().getTime()-before);
-      resetTimeout(3000);
+      
 
       //parseDataBufferSlowInit();
     },
@@ -1118,8 +1126,10 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       //await this.ser.port.setSignals({ break: true });
       //      await this.wait(sleepMs*4);
 
+this.debug("start sleep")
       await this.ser.port.setSignals({ break: false });
       await this.wait(sleepMs * 8);
+this.debug("start 1")
 
       await this.ser.port.setSignals({ break: true });
       await this.wait(sleepMs);
@@ -1133,7 +1143,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       await this.wait(sleepMs);
       await this.ser.port.setSignals({ break: false });
       await this.wait(sleepMs * 6);
-
+this.debug("done 1")
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
       //Expect 0x7c, 0xE9
@@ -1247,7 +1257,10 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">5 Baud Init</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">New Init</button>
+<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit5baud()">5 Baud Init</button>
+
+  
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
     <i class="fas fa-download"></i>
