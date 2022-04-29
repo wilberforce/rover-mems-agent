@@ -725,17 +725,19 @@ export default {
       await this.wait(2000);
 
       for (let i = 0; i < 10; i++) {
-        this.sendBytes(Array(5).fill(bits[i]));
+        this.sendBytes(Array(13).fill(bits[i]));
+        
       }
 
       this.debug(`time: ${performance.now() - start}\n`);
-      const reader = this.ser.port.readable.getReader();
+      //const reader = this.ser.port.readable.getReader();
 
       setTimeout(() => {
         this.debug("canceling...");
-        reader.cancel();
+        //reader.cancel();
       }, 2200);
 
+/*
       while (true) {
         const { value, done } = await reader.read();
         if (value) {
@@ -747,6 +749,8 @@ export default {
           break;
         }
       }
+      */
+     await this.wait(2200);
 
       this.debug("closing...");
       await this.ser.port.close();
