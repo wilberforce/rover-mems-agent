@@ -687,8 +687,8 @@ export default {
       sleepMs = 200;
       //this.wakeUp5Baud(ecuAddress, sleepMs);
       this.wakeUp5BaudNew10bits(ecuAddress,sleepMs)
-      //this.wakeUp5BaudNewTiming(ecuAddress,sleepMs)
-      //this.slowInit19(ecuAddress, sleepMs);
+      ////this.wakeUp5BaudNewTiming(ecuAddress,sleepMs)
+      this.slowInit19(ecuAddress, sleepMs);
     },
 
     async newInit5baud() {
@@ -696,6 +696,7 @@ export default {
 
       let ecuAddress = 0x16;
       //let ecuAddress = 0x55;
+      //ecuAddress = 0x55;
       this.debug(`5 Baud..Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`);
       //this.debug(this.ser.port.getInfo());
 
@@ -707,27 +708,26 @@ export default {
         flowControl: "none",
       });
 
-      //ecuAddress = (ecuAddress << 2) | 1;
       ecuAddress = (ecuAddress << 1) | 1;
 
       let bits = ecuAddress
         .toString(2)
-        //.padStart(10, 0)
+        .padStart(10, 0)
         .split("")
         .reverse()
         .map((x) => {
           return x * 0xff;
         });
-
       let start = performance.now();
 
-      this.debug("Clear line");
-      await this.ser.port.setSignals({ brk: false, break: false });
+      this.debug(`Clear line: ${bits}`);
+      await this.ser.port.setSignals({ break: false });
       await this.wait(2000);
 
-      for (let i = 0; i < 9; i++) {
-        this.sendBytes([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
+      for (let i = 0; i < 10; i++) {
+        this.sendBytes([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
       }
+
       this.debug(`time: ${performance.now() - start}\n`);
       const reader = this.ser.port.readable.getReader();
 
@@ -1030,16 +1030,17 @@ try {
       let before = new Date().getTime();
 
       // start bit:
-      await this.ser.port.setSignals({ brk: true, break: true });
+      await this.ser.port.setSignals({ break: true });
       await this.waitUntil(before + 200);
-
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
         this.debug(i + " " + bit);
         if (bit > 0) {
-          await this.ser.port.setSignals({ brk: false, break: false });
+           this.sendBytes(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00); 
+          //await this.ser.port.setSignals({ brk: false, break: false });
         } else {
           await this.ser.port.setSignals({ brk: true, break: true });
+         
         }
         await this.waitUntil(before + 200 + (i + 1) * 200);
       }
