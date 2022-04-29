@@ -725,7 +725,7 @@ export default {
       await this.wait(2000);
 
       for (let i = 0; i < 10; i++) {
-        this.sendBytes([bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i], bits[i]]);
+        this.sendBytes(Array(5).fill(bits[i]));
       }
 
       this.debug(`time: ${performance.now() - start}\n`);
