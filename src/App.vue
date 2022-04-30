@@ -697,7 +697,7 @@ export default {
       let ecuAddress = 0x16;
       //let ecuAddress = 0x55;
       //ecuAddress = 0x55;
-      this.debug(`5 Baud..Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}`);
+      this.debug(`5 Baud..Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}!`);
       //this.debug(this.ser.port.getInfo());
 
       await this.ser.port.open({
@@ -708,28 +708,53 @@ export default {
         flowControl: "none",
       });
 
-      ecuAddress = (ecuAddress << 1) | 1;
-
+//ecuAddress = 0b01010101;
+      //ecuAddress = (ecuAddress << 1) | 1;
+ecuAddress = 0b101101000;
+ecuAddress = 0b101100001
+ecuAddress = 0b011010001; //0x26
+ecuAddress = 0b011001001; //0x27
+ecuAddress = 0b011000001; //0x17
+ecuAddress = 0b011010001; //0x17 210 interval
+ecuAddress = 0b01101000; //0x17 210 interval
+ecuAddress = 0b00101000; //0x15 200 interval pad 8
+ecuAddress = 0b01001000; //0x13 200 interval pad 8
+ecuAddress = 0b00011000; //0x13 200 interval pad 8
+ecuAddress = 0b101101010; //0x16?
+ecuAddress = 0b110010101; //0x16?
       let bits = ecuAddress
         .toString(2)
-        .padStart(10, 0)
+        .padStart(9, 0)
         .split("")
-        .reverse()
-        .map((x) => {
-          return x * 0xff;
-        });
+        //.reverse()
+        //.map((x) => {return x * 0xff;});
       let start = performance.now();
-
-      this.debug(`Clear line: ${bits}`);
+console.log(ecuAddress.toString(2),bits);
+      //this.debug(`Clear line: ${bits}`);
       await this.ser.port.setSignals({ break: false });
       await this.wait(2000);
-
-      for (let i = 0; i < 10; i++) {
-        this.sendBytes(Array(13).fill(bits[i]));
-        
+      
+let x=[];
+let interval=200;
+      let before = new Date().getTime();
+      for (let i = 0; i < bits.length; i++) {
+        //this.debug(`Bit ${i}:${bits[i]}`);
+        if (bits[i] == 0 ) {
+          this.sendBytes(Array(14).fill(0x00));
+          x.push(0)
+        }
+        else 
+        {
+          //this.sendBytes(Array(12).fill(0xFF));
+          x.push(1)
+        }
+        await this.waitUntil(before + interval + (i + 1) * interval);
+        interval=200;
       }
+    
       
       this.debug(`time: ${performance.now() - start}\n`);
+      this.debug(x);
       const reader = this.ser.port.readable.getReader();
 
       setTimeout(() => {
