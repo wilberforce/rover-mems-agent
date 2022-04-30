@@ -728,16 +728,16 @@ export default {
         this.sendBytes(Array(13).fill(bits[i]));
         
       }
-
+      
       this.debug(`time: ${performance.now() - start}\n`);
-      //const reader = this.ser.port.readable.getReader();
+      const reader = this.ser.port.readable.getReader();
 
       setTimeout(() => {
         this.debug("canceling...");
-        //reader.cancel();
-      }, 2200);
+        reader.cancel();
+      }, 400);
 
-/*
+
       while (true) {
         const { value, done } = await reader.read();
         if (value) {
@@ -749,8 +749,11 @@ export default {
           break;
         }
       }
-      */
-     await this.wait(2200);
+//await this.wait(2200);
+
+await this.wait(2200);
+await this.ser.port.setSignals({ break: true });
+      await this.ser.port.setSignals({ break: false });
 
       this.debug("closing...");
       await this.ser.port.close();
@@ -770,7 +773,7 @@ export default {
 
     async baud5listen() {
       this.debug("set reader");
-      let read = 0;
+      let read = 4;
       while (this.ser.port.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
         this.debug("waiting on data...");
@@ -783,18 +786,23 @@ export default {
               this.debug("serial this.ser.reader done");
               return;
             }
-            this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
+            //this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
             //this.debug( `<< ${read}`);
+            this.debug( `<< ${value}`);
+            console.log(JSON.stringify(value))
             if (start === null) start = value[0];
             switch (start) {
               default: {
                 //read=read.substring(2);
-                this.debug(`<< ${this.ser.buffer}`);
+                //this.debug(`<< ${this.ser.buffer}`);
                 read++;
                 if (read === 5) {
-                  await this.wait(50);
-                  this.sendToEcu([0x7c]);
+                //await this.wait(200);
+                  this.debug('send 7c');
+                  this.sendBytes([0x7c]);
+                  read++;
+                  
                 }
                 start = null;
                 this.ser.buffer = "";
