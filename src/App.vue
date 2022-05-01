@@ -740,7 +740,8 @@ break 0
 break 0
 break 0
 */
-let ecuAddress2='101101000';
+//let ecuAddress2='101101000';
+let ecuAddress2='111111111101101000';
 let bits=ecuAddress2.split('').map(x=>parseInt(x,2));
 /*      let bits = ecuAddress
         .toString(2)
@@ -753,8 +754,8 @@ let bits=ecuAddress2.split('').map(x=>parseInt(x,2));
 let start = performance.now();
 console.log(ecuAddress.toString(2),bits);
       //this.debug(`Clear line: ${bits}`);
-      await this.ser.port.setSignals({ break: false });
-      await this.wait(2000);
+      //await this.ser.port.setSignals({ break: false });
+      //await this.wait(2000);
       
 let x=[];
 let interval=200;
@@ -782,7 +783,7 @@ let interval=200;
       setTimeout(() => {
         this.debug("canceling...");
         reader.cancel();
-      }, 400);
+      }, 200);
 
 
       while (true) {
@@ -798,7 +799,8 @@ let interval=200;
       }
 //await this.wait(2200);
 
-await this.wait(2200);
+await this.wait(500);
+this.debug('open 9600')
 await this.ser.port.setSignals({ break: true });
       await this.ser.port.setSignals({ break: false });
 
@@ -844,7 +846,7 @@ await this.ser.port.setSignals({ break: true });
                 //read=read.substring(2);
                 //this.debug(`<< ${this.ser.buffer}`);
                 read++;
-                if (read === 5) {
+                if (read === 50) {
                 //await this.wait(200);
                   this.debug('send 7c');
                   this.sendBytes([0x7c]);
