@@ -702,7 +702,7 @@ export default {
 
       await this.ser.port.open({
         baudRate: 300,
-        databits: 8,
+        databits: 1,
         parity: "even",
         stopbits: 1,
         flowControl: "none",
@@ -722,13 +722,35 @@ ecuAddress = 0b01001000; //0x13 200 interval pad 8
 ecuAddress = 0b00011000; //0x13 200 interval pad 8
 ecuAddress = 0b101101010; //0x16?
 ecuAddress = 0b110010101; //0x16?
-      let bits = ecuAddress
+ecuAddress = 0b101101000; //0x26
+ecuAddress = 0b101100001; //
+ecuAddress = 0b000101101; // 0x69      0b01101001 
+ecuAddress = 0b100001101; // 0xDA
+ecuAddress = 0b011000011; // 0x17
+ecuAddress = 0b011000010; // 0x16
+/*
+break 1
+break 0
+break 1
+break 1
+break 0
+break 1
+break 0
+break 0
+break 0
+break 0
+*/
+let ecuAddress2='101101000';
+let bits=ecuAddress2.split('').map(x=>parseInt(x,2));
+/*      let bits = ecuAddress
         .toString(2)
         .padStart(9, 0)
         .split("")
         //.reverse()
         //.map((x) => {return x * 0xff;});
-      let start = performance.now();
+      
+      */
+let start = performance.now();
 console.log(ecuAddress.toString(2),bits);
       //this.debug(`Clear line: ${bits}`);
       await this.ser.port.setSignals({ break: false });
