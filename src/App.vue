@@ -19,6 +19,8 @@ export default {
 
   data() {
     return {
+      ecuAddress:'1111111111001101000', // FF 16 FF
+      ecuAddress2:'1010101011001101000', // D5 16 FF
       appVersion: __APP_VERSION__,
       waitReply: false,
       queuedBytes: [],
@@ -741,8 +743,8 @@ break 0
 break 0
 */
 //let ecuAddress2='101101000';
-let ecuAddress2='111111111101101000';
-let bits=ecuAddress2.split('').map(x=>parseInt(x,2));
+let ecuAddress2='01101000011010000';
+let bits=this.ecuAddress.split('').map(x=>parseInt(x,2));
 /*      let bits = ecuAddress
         .toString(2)
         .padStart(9, 0)
@@ -772,7 +774,7 @@ let interval=200;
           x.push(1)
         }
         await this.waitUntil(before + interval + (i + 1) * interval);
-        interval=200;
+        //interval=200;
       }
     
       
@@ -1315,6 +1317,8 @@ this.debug("done 1")
       {{ fault }}
     </span>
   </p>
+
+  <input v-model="ecuAddress" type="text" class="form-control" placeholder="ECU Address" />
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
 
