@@ -44,9 +44,9 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 	fmt.Println("Serial cable set to:")
 	fmt.Println(mode)
 
-	fmt.Println( "Don't try the normal method first")
-	// try the normal method first
-	//ecu1xLoop(sp, true)
+	fmt.Println( "try the normal method first")
+	try the normal method first
+	ecu1xLoop(sp, true)
 
   // clear the line
 	sp.SetBreak(false)
@@ -67,10 +67,10 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
     bit := (ecuAddress >> i) & 1;
     if (bit > 0) {
         sp.SetBreak(false)
-		fmt.Println("break 1")
+		//fmt.Println("break 1")
     } else {
         sp.SetBreak(true)
-		fmt.Println("break 0")
+		//fmt.Println("break 0")
     }
 
     sleepUntil(start, 200 + ((i+1)*200))

@@ -19,8 +19,8 @@ export default {
 
   data() {
     return {
-      ecuAddress:'1111111111001101000', // FF 16 FF
-      ecuAddress2:'1010101011001101000', // D5 16 FF
+      ecuAddress: "1111111111001101000", // FF 16 FF
+      ecuAddress2: "1010101011001101000", // D5 16 FF
       appVersion: __APP_VERSION__,
       waitReply: false,
       queuedBytes: [],
@@ -168,7 +168,7 @@ export default {
           IACPosition: 0,
         },
         Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        Dataframe7d: "7d210000000000000000000000000000000000000000000000000000000000000000"                    
+        Dataframe7d: "7d210000000000000000000000000000000000000000000000000000000000000000",
       },
       parameters: [
         "EngineRPM",
@@ -688,7 +688,7 @@ export default {
       let sleepMs = 200;
       sleepMs = 200;
       //this.wakeUp5Baud(ecuAddress, sleepMs);
-      this.wakeUp5BaudNew10bits(ecuAddress,sleepMs)
+      this.wakeUp5BaudNew10bits(ecuAddress, sleepMs);
       ////this.wakeUp5BaudNewTiming(ecuAddress,sleepMs)
       this.slowInit19(ecuAddress, sleepMs);
     },
@@ -710,27 +710,27 @@ export default {
         flowControl: "none",
       });
 
-//ecuAddress = 0b01010101;
+      //ecuAddress = 0b01010101;
       //ecuAddress = (ecuAddress << 1) | 1;
-ecuAddress = 0b101101000;
-ecuAddress = 0b101100001
-ecuAddress = 0b011010001; //0x26
-ecuAddress = 0b011001001; //0x27
-ecuAddress = 0b011000001; //0x17
-ecuAddress = 0b011010001; //0x17 210 interval
-ecuAddress = 0b01101000; //0x17 210 interval
-ecuAddress = 0b00101000; //0x15 200 interval pad 8
-ecuAddress = 0b01001000; //0x13 200 interval pad 8
-ecuAddress = 0b00011000; //0x13 200 interval pad 8
-ecuAddress = 0b101101010; //0x16?
-ecuAddress = 0b110010101; //0x16?
-ecuAddress = 0b101101000; //0x26
-ecuAddress = 0b101100001; //
-ecuAddress = 0b000101101; // 0x69      0b01101001 
-ecuAddress = 0b100001101; // 0xDA
-ecuAddress = 0b011000011; // 0x17
-ecuAddress = 0b011000010; // 0x16
-/*
+      ecuAddress = 0b101101000;
+      ecuAddress = 0b101100001;
+      ecuAddress = 0b011010001; //0x26
+      ecuAddress = 0b011001001; //0x27
+      ecuAddress = 0b011000001; //0x17
+      ecuAddress = 0b011010001; //0x17 210 interval
+      ecuAddress = 0b01101000; //0x17 210 interval
+      ecuAddress = 0b00101000; //0x15 200 interval pad 8
+      ecuAddress = 0b01001000; //0x13 200 interval pad 8
+      ecuAddress = 0b00011000; //0x13 200 interval pad 8
+      ecuAddress = 0b101101010; //0x16?
+      ecuAddress = 0b110010101; //0x16?
+      ecuAddress = 0b101101000; //0x26
+      ecuAddress = 0b101100001; //
+      ecuAddress = 0b000101101; // 0x69      0b01101001
+      ecuAddress = 0b100001101; // 0xDA
+      ecuAddress = 0b011000011; // 0x17
+      ecuAddress = 0b011000010; // 0x16
+      /*
 break 1
 break 0
 break 1
@@ -742,10 +742,10 @@ break 0
 break 0
 break 0
 */
-//let ecuAddress2='101101000';
-let ecuAddress2='01101000011010000';
-let bits=this.ecuAddress.split('').map(x=>parseInt(x,2));
-/*      let bits = ecuAddress
+      //let ecuAddress2='101101000';
+      let ecuAddress2 = "01101000011010000";
+      let bits = this.ecuAddress.split("").map((x) => parseInt(x, 2));
+      /*      let bits = ecuAddress
         .toString(2)
         .padStart(9, 0)
         .split("")
@@ -753,31 +753,28 @@ let bits=this.ecuAddress.split('').map(x=>parseInt(x,2));
         //.map((x) => {return x * 0xff;});
       
       */
-let start = performance.now();
-console.log(ecuAddress.toString(2),bits);
+      let start = performance.now();
+      console.log(ecuAddress.toString(2), bits);
       //this.debug(`Clear line: ${bits}`);
       //await this.ser.port.setSignals({ break: false });
       //await this.wait(2000);
-      
-let x=[];
-let interval=200;
+
+      let x = [];
+      let interval = 200;
       let before = new Date().getTime();
       for (let i = 0; i < bits.length; i++) {
         //this.debug(`Bit ${i}:${bits[i]}`);
-        if (bits[i] == 0 ) {
+        if (bits[i] == 0) {
           this.sendBytes(Array(14).fill(0x00));
-          x.push(0)
-        }
-        else 
-        {
+          x.push(0);
+        } else {
           //this.sendBytes(Array(12).fill(0xFF));
-          x.push(1)
+          x.push(1);
         }
         await this.waitUntil(before + interval + (i + 1) * interval);
         //interval=200;
       }
-    
-      
+
       this.debug(`time: ${performance.now() - start}\n`);
       this.debug(x);
       const reader = this.ser.port.readable.getReader();
@@ -786,7 +783,6 @@ let interval=200;
         this.debug("canceling...");
         reader.cancel();
       }, 200);
-
 
       while (true) {
         const { value, done } = await reader.read();
@@ -799,11 +795,11 @@ let interval=200;
           break;
         }
       }
-//await this.wait(2200);
+      //await this.wait(2200);
 
-await this.wait(500);
-this.debug('open 9600')
-await this.ser.port.setSignals({ break: true });
+      await this.wait(500);
+      this.debug("open 9600");
+      await this.ser.port.setSignals({ break: true });
       await this.ser.port.setSignals({ break: false });
 
       this.debug("closing...");
@@ -840,8 +836,8 @@ await this.ser.port.setSignals({ break: true });
             //this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
             //this.debug( `<< ${read}`);
-            this.debug( `<< ${value}`);
-            console.log(JSON.stringify(value))
+            this.debug(`<< ${value}`);
+            console.log(JSON.stringify(value));
             if (start === null) start = value[0];
             switch (start) {
               default: {
@@ -849,11 +845,10 @@ await this.ser.port.setSignals({ break: true });
                 //this.debug(`<< ${this.ser.buffer}`);
                 read++;
                 if (read === 50) {
-                //await this.wait(200);
-                  this.debug('send 7c');
+                  //await this.wait(200);
+                  this.debug("send 7c");
                   this.sendBytes([0x7c]);
                   read++;
-                  
                 }
                 start = null;
                 this.ser.buffer = "";
@@ -877,11 +872,10 @@ await this.ser.port.setSignals({ break: true });
           return 3; //psuedo command - 5 baud echo expect 0x00 0x00 0x00 then reply
 
         case 0x80:
-          if (dataframe.length > 2) return dataframe[2] + 2;// command is 0x1c=> 28 + 2 = 30
+          if (dataframe.length > 2) return dataframe[2] + 2; // command is 0x1c=> 28 + 2 = 30
           return len_cmd;
         case 0x7d:
           if (dataframe.length > 2) {
-            
             return dataframe[2] + 1; // command is 34 0x21=>33 + 1
           } // Need to handle case of single byte
           return len_cmd;
@@ -897,20 +891,19 @@ await this.ser.port.setSignals({ break: true });
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
 
-try {
-      await this.ser.port.open({
-        baudRate: 9600,
-        databits: 8,
-        bufferSize: 128,
-        parity: "none",
-        stopbits: 1,
-        flowControl: "none",
-      })
-
-} catch (error) {
-    this.debug('port is already open - refresh page to close')
-  return;
-}
+      try {
+        await this.ser.port.open({
+          baudRate: 9600,
+          databits: 8,
+          bufferSize: 128,
+          parity: "none",
+          stopbits: 1,
+          flowControl: "none",
+        });
+      } catch (error) {
+        this.debug("port is already open - refresh page to close");
+        return;
+      }
       this.sendToEcu([0xd1]);
       this.pollDataframes();
 
@@ -943,45 +936,42 @@ try {
               cmd = inbound[0];
               dataframe = inbound;
               len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`)
+              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
             } else {
               let required = len_cmd - dataframe.length;
-              if ( required < 0 ) {
-                this.debug('cmd length error');
-                len_cmd=0
-                required=0;
+              if (required < 0) {
+                this.debug("cmd length error");
+                len_cmd = 0;
+                required = 0;
               }
               if (inbound.length >= required) {
-
                 rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
-                this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`)
-                
+                this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
               } else {
                 dataframe.push(...inbound);
-                inbound=[];
-                 this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`)
+                inbound = [];
+                this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`);
               }
             }
             this.ser.dataframe = dataframe;
 
-            if ( len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
-              this.watchdog = 
-                setTimeout(() => {
-                  this.watchdog = null;
-                  this.debug(`watchdog timeout ${dataframe.length} ${len_cmd}` );
-                  len_cmd=0
-                  dataframe = [];
-                }, 100);
-              }
-              //this.waitReply = false;
+            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
+              this.watchdog = setTimeout(() => {
+                this.watchdog = null;
+                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd}`);
+                len_cmd = 0;
+                dataframe = [];
+              }, 100);
+            }
+            //this.waitReply = false;
             if (dataframe.length == len_cmd) {
-               if ( this.watchdog) { 
-                 this.debug('watchdog clear');
+              if (this.watchdog) {
+                this.debug("watchdog clear");
                 clearTimeout(this.watchdog);
                 this.watchdog = null;
-               }
+              }
               this.waitReply = false; // Allow commands to be sent
               let data = this.hex(dataframe);
               switch (cmd) {
@@ -1042,17 +1032,16 @@ try {
               }
               len_cmd = 0;
               dataframe = [];
-              if ( rest.length) {
-                
+              if (rest.length) {
                 dataframe.push(...rest);
                 len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
               }
-              if ( dataframe.length >= 40 ) {
-                this.debug('dataframe too long,');
+              if (dataframe.length >= 40) {
+                this.debug("dataframe too long,");
                 len_cmd = 0;
                 dataframe = [];
               }
-            } 
+            }
           }
         } catch (error) {
           this.debug(`error: ${error.message}`);
@@ -1071,11 +1060,11 @@ try {
       await new Promise((resolve) => setTimeout(resolve, sleepFor));
     },
     async waitUntil(timestampMs) {
-  let now = new Date().getTime()
-  let sleepFor = timestampMs-now;
-  // if (ms < 4) { debug("asked to sleep for "+ms+" but minimum will be 4ms+"); }
-  await new Promise(resolve => setTimeout(resolve, sleepFor));
-},
+      let now = new Date().getTime();
+      let sleepFor = timestampMs - now;
+      // if (ms < 4) { debug("asked to sleep for "+ms+" but minimum will be 4ms+"); }
+      await new Promise((resolve) => setTimeout(resolve, sleepFor));
+    },
     async slowInit19() {
       let ecuAddress = 0x16; // 22
 
@@ -1099,11 +1088,91 @@ try {
         let bit = (ecuAddress >> i) & 1;
         this.debug(i + " " + bit);
         if (bit > 0) {
-           this.sendBytes(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00); 
+          this.sendBytes(
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00
+          );
           //await this.ser.port.setSignals({ brk: false, break: false });
         } else {
           await this.ser.port.setSignals({ brk: true, break: true });
-         
         }
         await this.waitUntil(before + 200 + (i + 1) * 200);
       }
@@ -1115,7 +1184,6 @@ try {
       this.debug("Done sending slow init");
 
       // debug(new Date().getTime()-before);
-      
 
       //parseDataBufferSlowInit();
     },
@@ -1190,10 +1258,10 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       //await this.ser.port.setSignals({ break: true });
       //      await this.wait(sleepMs*4);
 
-this.debug("start sleep")
+      this.debug("start sleep");
       await this.ser.port.setSignals({ break: false });
       await this.wait(sleepMs * 8);
-this.debug("start 1")
+      this.debug("start 1");
 
       await this.ser.port.setSignals({ break: true });
       await this.wait(sleepMs);
@@ -1207,7 +1275,7 @@ this.debug("start 1")
       await this.wait(sleepMs);
       await this.ser.port.setSignals({ break: false });
       await this.wait(sleepMs * 6);
-this.debug("done 1")
+      this.debug("done 1");
       // expectiNg 0x55, 0x76, 0x83
       //this.sendToEcu([0x7c]);
       //Expect 0x7c, 0xE9
@@ -1324,9 +1392,7 @@ this.debug("done 1")
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">New Init</button>
-<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit5baud()">5 Baud Init</button>
-
-  
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit5baud()">5 Baud Init</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
     <i class="fas fa-download"></i>
@@ -1366,10 +1432,10 @@ this.debug("done 1")
   </button>
 
   Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br />
-  {{ hex(ser.dataframe) }}  {{ser.dataframe.length}}
+  {{ hex(ser.dataframe) }} {{ ser.dataframe.length }}
   <hr />
   <div>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d,0x80])">Data 7D/80</button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">Data 7D/80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
 
@@ -1425,6 +1491,18 @@ this.debug("done 1")
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b])">+</button>
     </div>
 
+    <div class="btn-group mr-2" role="group">
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x92])">-</button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0">Idle Speed
+          <span class="ml-1 badge badge-dark">
+            SetPoint: {{Dataframe.IdleSetPoint}} Speed: {{ Dataframe.IdleSpeed }} IdleHot: {{ Dataframe.IdleHot }} Δ {{ Dataframe.IdleSpeedDeviation }}
+          </span></label
+        ></span
+      >
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x791])">+</button>
+    </div>
+
     <p></p>
 
     <div class="btn-group mr-2" role="group">
@@ -1438,7 +1516,7 @@ this.debug("done 1")
     </div>
   </div>
 
- <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
+  <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
     <template #layers>
       <Grid strokeDasharray="2,2" />
@@ -1478,8 +1556,6 @@ this.debug("done 1")
     ><span class="badge badge-light">{{ Dataframe.Dataframe80.length }} {{ Dataframe.Dataframe80 }}</span></label
   >
   <br />
-
- 
 </template>
 <style lang="scss">
 .card-columns {
