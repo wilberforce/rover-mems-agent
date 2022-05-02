@@ -58,6 +58,7 @@ export default {
         mode: 0,
         port: null,
         dataframe: [] as number[],
+        buffer: "" as string,
       },
       ECUID: "",
       ECUSerial: "",
@@ -472,7 +473,7 @@ export default {
     recordStart() {
       this.waitReply = false;
       this.recordStop();
-      this.record.timer = setInterval(() => this.pollDataframes(), 500);
+      this.record.timer = setInterval(() => this.pollDataframes(), 1000);
     },
     recordStop() {
       if (this.record.timer) clearInterval(this.record.timer);
@@ -886,6 +887,188 @@ break 0
         default:
           console.log(`Cmd: ${cmd.toString(16).padStart(2, "0")}`);
           return 3;
+      }
+    },
+    async openSerialPortOld() {
+      navigator.serial.addEventListener("connect", (event) => {
+        console.log({ e: event });
+        debug;
+      });
+      this.ser.port = await navigator.serial.requestPort();
+      this.debug(this.ser.port.getInfo());
+      let ports = await navigator.serial.getPorts();
+      await this.ser.port.open({
+        baudRate: 9600,
+        databits: 8,
+        bufferSize: 128,
+        parity: "none",
+        stopbits: 1,
+        flowControl: "none",
+      });
+      this.debug(this.ser.port);
+      this.sendBytes([0xd0]);
+      this.pollDataframes();
+      let start = null;
+      while (this.ser.port.readable) {
+        this.ser.reader = this.ser.port.readable.getReader();
+        this.debug("waiting on data...");
+        //https://stackoverflow.com/questions/70920727/read-usb-serial-port-data-with-web-serial-api-in-javascript
+        try {
+          while (true) {
+            if (!this.waitReply && this.queuedBytes.length) {
+              this.expectingBytes = this.queuedBytes.pop();
+              this.sendBytes(this.expectingBytes);
+            }
+            const { value, done } = await this.ser.reader.read();
+            this.waitReply = 0;
+            if (done) {
+              this.debug("serial this.ser.reader done");
+              return;
+            }
+            this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
+            this.waitReply = false;
+            if (start === null) start = value[0];
+            switch (start) {
+              case 0x1b:
+                // 1b5b41 up arrow key test com port
+                this.debug(`Arrow << ${this.ser.buffer}`);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              case 0x80:
+                this.expectedBytes = 60;
+                if (this.ser.buffer.length < this.expectedBytes) {
+                  this.debug(`expected 60 (${this.ser.buffer.length}) bytes for 0x80`);
+                  break;
+                }
+                if (this.ser.buffer.length != 60) {
+                  this.ser.buffer = "";
+                  start = null;
+                  this.debug(`rejected << ${this.ser.buffer}`);
+                  return;
+                }
+                this.Dataframe.Dataframe80 = this.ser.buffer.substring(2, 60);
+                // Save rest of buffer
+                this.log.MemsData.push({
+                  Time: this.Dataframe.Time,
+                  Dataframe80: this.Dataframe.Dataframe80,
+                  Dataframe7d: this.Dataframe.Dataframe7d,
+                });
+                this.parse80(this.hexToBytes(this.ser.buffer));
+                this.ser.buffer = this.ser.buffer.substring(60);
+                if (this.ser.buffer.length) {
+                  value = parseInt(this.ser.buffer.substring(60), 2);
+                } else start = null;
+                break;
+              case 0x00: {
+                this.debug(`<< ${this.ser.buffer}`);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
+              case 0x55: {
+                //let send = start ^ 0xff;
+                this.debug(`1.9 ECU woke up - init stage 1, << ${this.ser.buffer} >> ca`);
+                this.sendBytes([0xca]);
+                await this.sleep(100);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
+              case 0xca: {
+                this.debug(`Stage 2 << ${this.ser.buffer} >> 75`);
+                this.sendBytes([0x75]);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
+              case 0x75: {
+                this.debug(`Stage 3 << ${this.ser.buffer} >> F4`);
+                this.sendBytes([0xf4]);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
+              case 0xf4: {
+                this.debug(`Stage 4 ${this.ser.buffer}`);
+                this.sendBytes([0xd0]);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
+              case 0xd0: {
+                //d0d0c70005cb
+                this.debug(`Got ID ${this.ser.buffer}`);
+                this.debug(this.ser.buffer);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }
+              case 0x7d:
+                if (this.ser.buffer.length < 70) {
+                  //this.debug(  `expected 70 (${this.ser.buffer.length}) bytes for 0x7d` );
+                  break;
+                }
+                if (this.ser.buffer.length != 70) {
+                  this.ser.buffer = "";
+                  start = null;
+                  this.debug(`rejected << ${this.ser.buffer}`);
+                  return;
+                }
+                this.ser.buffer = this.ser.buffer.substring(2);
+                this.Dataframe.Dataframe7d = this.ser.buffer;
+                let now = new Date();
+                let ms = now.getMilliseconds().toString(10).padStart(3, "0");
+                this.Dataframe.Time = `${now.toLocaleTimeString()}.${ms}`;
+                this.parse7D(this.hexToBytes(this.ser.buffer));
+                //this.sendBytes([0x80]); // trigger next frame
+                this.ser.buffer = "";
+                start = null;
+                break;
+              case 0xd0:
+                if (this.ser.buffer.length < 4) {
+                  this.debug(`expected 64 bytes for 0xd0, got ${this.ser.buffer.length}`);
+                  break;
+                }
+                this.debug(`0xd0 << ${this.ser.buffer.length}`);
+                this.ser.buffer = this.ser.buffer.substring(2);
+                this.parseD0(this.ser.buffer);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              case 0xd1:
+                // d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb 70!
+                if (this.ser.buffer.length < 60) {
+                  this.debug(`expected 60+ bytes for 0xd1, got ${this.ser.buffer.length}`);
+                  if (this.ser.buffer.length == 2) {
+                    this.ser.buffer = "";
+                    start = null;
+                    // gone wrong - reset
+                  }
+                  break;
+                }
+                this.ser.buffer = this.ser.buffer.substring(2);
+                this.parseD1(this.ser.buffer);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              default: {
+                //read=read.substring(2);
+                this.debug("default:", this.ser.buffer);
+                this.debug(`<< ${this.ser.buffer}`);
+                start = null;
+                this.ser.buffer = "";
+              }
+            }
+          }
+        } catch (error) {
+          this.debug(`error: ${error.message}`);
+          this.debug(error);
+        } finally {
+          this.ser.reader.releaseLock();
+          this.ser.reader = null;
+          this.debug("released lock");
+        }
       }
     },
     async openSerialPort() {
@@ -1328,9 +1511,23 @@ from the inverted key byte 2 from the tester and the inverted address from the E
         Δ {{ deltaDist }}m <br />
          -->
       </div>
-    </div>
-
+       </div>
+  
     <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Idle</h6>
+        
+        <br>
+         IAC Position: <span class="ml-1 badge badge-dark">{{ Dataframe.IACPosition }}</span>  <br>
+         SetPoint: <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSetPoint }}</span>  <br>
+         Offset: <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSpeedOffset }}</span> <br>
+         IdleHot: <span class="ml-1 badge badge-dark">{{ Dataframe.IdleHot }}</span> <br>
+        Δ : <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSpeedDeviation }}</span>
+      </div>
+   
+  </div>
+
+      <div class="card">
       <div class="card-body">
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
@@ -1344,6 +1541,8 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       </div>
     </div>
   </div>
+
+
 
   <div v-if="0" class="card-group text-center mt-2">
     <div class="card">
@@ -1389,6 +1588,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   <input v-model="ecuAddress" type="text" class="form-control" placeholder="ECU Address" />
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
+<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortOld">Open Serial Port Old</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">New Init</button>
@@ -1496,7 +1696,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0">Idle Speed
           <span class="ml-1 badge badge-dark">
-            SetPoint: {{Dataframe.IdleSetPoint}} Speed: {{ Dataframe.IdleSpeed }} IdleHot: {{ Dataframe.IdleHot }} Δ {{ Dataframe.IdleSpeedDeviation }}
+            SetPoint: {{Dataframe.IdleSetPoint}}
           </span></label
         ></span
       >
