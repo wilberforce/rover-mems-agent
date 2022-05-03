@@ -501,7 +501,8 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len != 33 || !(v.getUint8(0)==0x7d && v.byteLength ==35 )) {
+      if (len != 33 || !(v.getUint8(0)==0x7d && v.byteLength ==34 )) {
+        debugger;
         this.debug(`expected len 33 for 0x7d got ${len}`);
         return;
       } else {
@@ -880,7 +881,7 @@ break 0
           return len_cmd;
         case 0x7d:
           if (dataframe.length > 2) {
-            return dataframe[2] + 1; // command is 34 0x21=>33 + 1
+            return dataframe[2] + 2; // command is 34 0x21=>33 + 1
           } // Need to handle case of single byte
           return len_cmd;
         case 0xd0:
