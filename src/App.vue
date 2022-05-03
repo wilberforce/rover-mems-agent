@@ -880,7 +880,7 @@ break 0
         case 0x55: // Stage 1 init
           return 3;
         case 0x7c: // Stage 2 init
-          return 3;          
+          return 2;          
         case 0x80:
           if (dataframe.length > 2) return dataframe[2] + 2; // command is 0x1c=> 28 + 2 = 30
           return len_cmd;
@@ -979,6 +979,7 @@ break 0
                 this.debug(`<< ${this.ser.buffer}`); //55 75 83
                 this.debug(`1.9 ECU woke up - init stage 1, << ${this.ser.buffer} >> 7c`);
                 this.sendBytes([0x7c]);
+                debugger;
                 this.ser.buffer = "";
                 start = null;
                 break;
@@ -1203,14 +1204,24 @@ break 0
               }
               this.waitReply = false; // Allow commands to be sent
               let data = this.hex(dataframe);
+              
               switch (cmd) {
                 case 0x00:
-                  
+                  len_cmd = 0;
+                      cmd = 0x00;
+                      dataframe = [];
                   break;
                 case 0x55:
                   //0x55, 0x76, 0x83
-                  this.sendToEcu([0x55, 0x76, 0x83]);
-                  break;                  
+
+this.sendBytes([0x7c]);
+         len_cmd = 0;
+                      cmd = 0x00;       
+                      dataframe = [];
+                        break;                  
+                case 0x7c:
+                  this.sendToEcu([0xca]);
+                  break;
                 case 0xca:
                   this.sendToEcu([0x75]);
                   break;
