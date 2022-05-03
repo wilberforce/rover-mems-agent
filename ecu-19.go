@@ -18,7 +18,7 @@ var (
 
 func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
-	fmt.Println("Connecting to MEMS 1.9 ECU")
+	fmt.Println("Connecting to MEMS 1.9 ECU - RW")
 	globalConnected = false
 
 	sp, err := sers.Open(fn)
@@ -45,7 +45,6 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 	fmt.Println(mode)
 
 	fmt.Println( "try the normal method first")
-	try the normal method first
 	ecu1xLoop(sp, true)
 
   // clear the line
@@ -54,10 +53,10 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
   start := time.Now()
 
-  fmt.Printf("Time A: %s", time.Now());
+  fmt.Printf("Time A: %s\n", time.Now());
   // start bit
 	sp.SetBreak(true)
-	fmt.Println("break 1")
+	//fmt.Println("break 1")
   sleepUntil(start, 200)
 
   // send the byte
@@ -78,10 +77,10 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
   }
   // stop bit
 	sp.SetBreak(false)
-	fmt.Println("break 0")
-	fmt.Printf("Time B - before stop bit: %s", time.Now());
+	//fmt.Println("break 0")
+	//fmt.Printf("Time B - before stop bit: %s\n", time.Now());
   sleepUntil(start, 200 + (8*200) + 200)
-  fmt.Printf("Time C - after stop bit: %s", time.Now());
+  fmt.Printf("Time C - after stop bit: %s\n", time.Now());
 	buffer := make([]byte, 0)
 
 	readLoops := 0
@@ -106,7 +105,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 		
 		for len(buffer) > 0 && buffer[0] == 0x00 {
 			fmt.Printf("Time D - Dropping 0x00\n", time.Now());
-			fmt.Printf("")
+			fmt.Printf("\n")
 			buffer = buffer[1:]
 		}
 
@@ -116,8 +115,8 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
       fmt.Println("1.9 ECU woke up - init stage 1!")
 	  fmt.Printf("Time F\n", time.Now());
 
-	  fmt.Printf("RW buffer a data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
-	  fmt.Printf("RW ecu19WokeResponse data: got %d bytes \n%s", len(ecu19WokeResponse), hex.Dump(ecu19WokeResponse))
+	  fmt.Printf("RW buffer a data: got %d bytes \n%s\n", len(buffer), hex.Dump(buffer))
+	  fmt.Printf("RW ecu19WokeResponse data: got %d bytes \n%s\n", len(ecu19WokeResponse), hex.Dump(ecu19WokeResponse))
 
 	  
 			buffer = nil
@@ -133,11 +132,11 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
     if slicesEqual(buffer, ecu19SpecificInitResponse) {
 		fmt.Printf("Time H\n", time.Now());
 		fmt.Printf("RW buffer b data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
-		fmt.Printf("RW ecu19SpecificInitResponse data: got %d bytes \n%s", len(ecu19SpecificInitResponse), hex.Dump(ecu19SpecificInitResponse))		
+		fmt.Printf("RW ecu19SpecificInitResponse data: got %d bytes \n%s\n", len(ecu19SpecificInitResponse), hex.Dump(ecu19SpecificInitResponse))		
 
 
       fmt.Println("1.9 ECU init stage 2!")
-	  fmt.Printf("RW buffer data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
+	  fmt.Printf("RW buffer data: got %d bytes \n%s\n", len(buffer), hex.Dump(buffer))
       buffer = nil
       ecu1xLoop(sp, true)
       continue
@@ -145,7 +144,7 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
 	}
 	if readLoops >= readLoopsLimit {
-		fmt.Printf("1.9 had buffer data: got %d bytes \n%s", len(buffer), hex.Dump(buffer))
+		fmt.Printf("1.9 had buffer data: got %d bytes \n%s\n", len(buffer), hex.Dump(buffer))
 		return nil, errors.New("MEMS 1.9 timed out")
 	}
 	fmt.Println("fell out of 1.9 readloop")

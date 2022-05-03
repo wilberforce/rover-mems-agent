@@ -1,7 +1,9 @@
 <script lang="ts">
 //import imported_data from "./data/run-demo.fcr.json";
 //import imported_data from "./data/run-1649820449532.fcr.json";
-import imported_data from "./data/run-1649822529717.fcr.json";
+//import imported_data from "./data/run-1649822529717.fcr.json";
+import imported_data from "./data/run-1651534154333.fcr.json";
+//import imported_data from "./data/run-1651531224249.fcr.json";  // Small start up
 
 //import imported_data from "./data/nofaults.fcr.json";
 import { Chart, Grid, Line, Tooltip } from "vue3-charts";
@@ -258,6 +260,8 @@ export default {
       if (this.Dataframe.DTC2 & 0x10) f.push("Fan 1 Control");
       if (this.Dataframe.DTC2 & 0x40) f.push("Fan 2 Control");
       if (this.Dataframe.DTC3 & 0x01) f.push("Primary Trigger Sync");
+      if (this.Dataframe.DTC3 & 0x04) f.push("DTC 0x4");
+    
       return f;
     },
     MPH() {
@@ -497,8 +501,7 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len < 33) {
-        // len is 33 mems 1.9
+      if (len != 33 || !(v.getUint8(0)==0x7d && v.byteLength ==35 )) {
         this.debug(`expected len 33 for 0x7d got ${len}`);
         return;
       } else {
@@ -537,7 +540,7 @@ export default {
           Uk7d1d: v.getUint8(0x1d + offset),
           Uk7d1e: v.getUint8(0x1e + offset),
           JackCount: v.getUint8(0x1f + offset),
-          Uk7d20: v.getUint8(0x20), // Mems 1.9
+          Uk7d20: v.getUint8(0x20 + offset)
         };
         Object.assign(this.Dataframe, v7d);
       }
@@ -546,8 +549,8 @@ export default {
       var v = new DataView(data);
       let type = v.getUint8(0);
       let len = v.getUint8(1);
-
-      if (len !== 28) {
+      if (len !== 28  || !(v.getUint8(0)==0x80 && v.byteLength ==29 )) {
+        debugger;
         this.debug(`expected len 28 (${len}) for 0x80`);
         return;
       } else {

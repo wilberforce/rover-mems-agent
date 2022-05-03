@@ -2,17 +2,19 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"strings"
 	"time"
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
-	"github.com/gin-gonic/gin"
+
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+
 	// "github.com/gin-contrib/static"
-  "github.com/gorilla/websocket"
+	"github.com/gorilla/websocket"
 )
 
 //go:embed web-static/*
@@ -165,6 +167,7 @@ var wsupgrader = websocket.Upgrader{
 }
 
 func wshandler(w http.ResponseWriter, r *http.Request) {
+	wsupgrader.CheckOrigin = func(r *http.Request) bool { return true }
     conn, err := wsupgrader.Upgrade(w, r, nil)
     if err != nil {
         fmt.Println("Failed to set websocket upgrade: %+v", err)
