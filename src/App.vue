@@ -702,8 +702,6 @@ export default {
       this.ser.port = await navigator.serial.requestPort();
 
       let ecuAddress = 0x16;
-      //let ecuAddress = 0x55;
-      //ecuAddress = 0x55;
       this.debug(`5 Baud..Connecting to MEMS 1.9 ECU at address ${ecuAddress.toString(16)}!`);
       //this.debug(this.ser.port.getInfo());
 
@@ -876,7 +874,10 @@ break 0
       switch (cmd) {
         case 0x00:
           return 3; //psuedo command - 5 baud echo expect 0x00 0x00 0x00 then reply
-
+        case 0x55: // Stage 1 init
+          return 3;
+        case 0x7c: // Stage 2 init
+          return 3;          
         case 0x80:
           if (dataframe.length > 2) return dataframe[2] + 2; // command is 0x1c=> 28 + 2 = 30
           return len_cmd;
@@ -972,14 +973,21 @@ break 0
                 break;
               }
               case 0x55: {
-                //let send = start ^ 0xff;
-                this.debug(`1.9 ECU woke up - init stage 1, << ${this.ser.buffer} >> ca`);
-                this.sendBytes([0xca]);
-                await this.sleep(100);
+                this.debug(`<< ${this.ser.buffer}`); //55 75 83
+                this.debug(`1.9 ECU woke up - init stage 1, << ${this.ser.buffer} >> 7c`);
+                this.sendBytes([0x7c]);
                 this.ser.buffer = "";
                 start = null;
                 break;
               }
+              case 0x7c: {
+                this.debug(`<< ${this.ser.buffer}`);
+                this.debug(`1.9 ECU woke up - init stage 2, << ${this.ser.buffer} >> ca`);
+                this.sendBytes([0xca]);
+                this.ser.buffer = "";
+                start = null;
+                break;
+              }              
               case 0xca: {
                 this.debug(`Stage 2 << ${this.ser.buffer} >> 75`);
                 this.sendBytes([0x75]);
@@ -1092,8 +1100,38 @@ break 0
         this.debug("port is already open - refresh page to close");
         return;
       }
-      this.sendToEcu([0xd1]);
-      this.pollDataframes();
+
+      let ecuAddress = 0x16;
+
+      this.debug("Attempting ECnoreU connection... (address: " + ecuAddress + ") (slow init)");
+
+      this.debug("Starting slow init, this takes 2 seconds to send");
+
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(2000);
+
+      let before = new Date().getTime();
+
+      // start bit:
+      await this.ser.port.setSignals({ break: true });
+      await this.waitUntil(before + 200);
+      for (var i = 0; i < 8; i++) {
+        let bit = (ecuAddress >> i) & 1;
+        if (bit > 0) {
+          await this.ser.port.setSignals({ brk: false, break: false });
+        } else {
+          await this.ser.port.setSignals({ brk: true, break: true });
+        }
+        await this.waitUntil(before + 200 + (i + 1) * 200);
+      }
+
+      // stop bit:
+      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.waitUntil(before + 200 + 8 * 200);
+
+      this.debug("Done sending slow init");
+      //this.sendToEcu([0xd1]);
+      //this.pollDataframes();
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -1164,8 +1202,12 @@ break 0
               let data = this.hex(dataframe);
               switch (cmd) {
                 case 0x00:
-                  this.sendToEcu([0x55, 0x76, 0x83]);
+                  
                   break;
+                case 0x55:
+                  //0x55, 0x76, 0x83
+                  this.sendToEcu([0x55, 0x76, 0x83]);
+                  break;                  
                 case 0xca:
                   this.sendToEcu([0x75]);
                   break;
