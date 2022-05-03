@@ -840,6 +840,9 @@ break 0
             //this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
             //this.debug( `<< ${read}`);
+            if ( this.ser.dataframe === '000000557683' ) {
+              this.sendBytes([0x7c]);
+            }
             this.debug(`<< ${value}`);
             console.log(JSON.stringify(value));
             if (start === null) start = value[0];
@@ -1297,6 +1300,7 @@ break 0
     },
     async slowInit19() {
       let ecuAddress = 0x16; // 22
+      this.ser.dataframe = [];
 
       //resetTimeout(5000);
       let dataBuffer = [];
