@@ -693,7 +693,7 @@ export default {
       let sleepMs = 200;
       sleepMs = 200;
       //this.wakeUp5Baud(ecuAddress, sleepMs);
-      this.wakeUp5BaudNew10bits(ecuAddress, sleepMs);
+      //this.wakeUp5BaudNew10bits(ecuAddress, sleepMs);
       ////this.wakeUp5BaudNewTiming(ecuAddress,sleepMs)
       this.slowInit19(ecuAddress, sleepMs);
     },
@@ -838,6 +838,7 @@ break 0
               this.debug("serial this.ser.reader done");
               return;
             }
+            this.ser.dataframe=this.ser.dataframe.concat(this.hex(Array.from(value)));
             //this.ser.buffer = this.ser.buffer.concat(this.hex(Array.from(value)));
             //this.debug(`l: ${read.length} d: ${read} v: ${value}`);
             //this.debug( `<< ${read}`);
@@ -1257,13 +1258,13 @@ break 0
 
       //resetTimeout(5000);
       let dataBuffer = [];
-      this.debug("Attempting ECU connection... (address: " + ecuAddress + ") (slow init)");
+      this.debug("Attempting ECnoreU connection... (address: " + ecuAddress + ") (slow init)");
 
       this.debug("Starting slow init, this takes 2 seconds to send");
       // mEcuAddr = 22;
 
       // pause/delay to clear the line
-      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.ser.port.setSignals({ break: false });
       await this.wait(2000);
 
       let before = new Date().getTime();
@@ -1273,91 +1274,9 @@ break 0
       await this.waitUntil(before + 200);
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-        this.debug(i + " " + bit);
+        //this.debug(i + " " + bit);
         if (bit > 0) {
-          this.sendBytes(
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00
-          );
-          //await this.ser.port.setSignals({ brk: false, break: false });
+          await this.ser.port.setSignals({ brk: false, break: false });
         } else {
           await this.ser.port.setSignals({ brk: true, break: true });
         }
@@ -1366,9 +1285,11 @@ break 0
 
       // stop bit:
       await this.ser.port.setSignals({ brk: false, break: false });
-      await this.waitUntil(before + 200 + 8 * 200 + 200);
+      await this.waitUntil(before + 200 + 8 * 200);
 
       this.debug("Done sending slow init");
+
+      this.baud5listen();
 
       // debug(new Date().getTime()-before);
 
