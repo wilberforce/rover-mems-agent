@@ -1175,7 +1175,7 @@ break 0
                   break;
                 case 0x7d:
                   if (data.length > 4) {
-                    //this.sendToEcu([0x80]); // Trigger next dataframe
+                    this.sendToEcu([0x80]); // Trigger next dataframe
                     this.parse7D(this.hexToBytes(data.substring(2)));
 
                     this.Dataframe.Time = this.Time();
