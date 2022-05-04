@@ -746,9 +746,14 @@ App.vue:659 caca -> start caca
         this.debug("port is already open - refresh page to close");
         return;
       }
+      this.ser.stage = 1;
       let ecuAddress = 0x16;
-      if (this.ser.stage == 0) {
-        this.debug("Attempting ECU connection... (address: " + ecuAddress + ") (slow init)");
+      this.ser.retries = 10;
+
+      this.debug('pausing..');
+      this.ser.connectTimer = setInterval(async () => {
+        this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
+        this.ser.retries--;
         const start = performance.now();
         await this.ser.port.setSignals({ break: false });
         let pause = 200;
@@ -772,9 +777,11 @@ App.vue:659 caca -> start caca
         await this.waitUntil(before + pause + 8 * pause);
         this.ser.stage++;
         this.debug(`done slow: ${performance.now() - start}\n`);
-      }
+      }, 4000);
+
       this.waitReply = false;
       while (this.ser.port?.readable) {
+        this.debug('listening..');
         this.ser.reader = this.ser.port.readable.getReader();
         let cmd = 0;
         let len_cmd = 0;
@@ -842,6 +849,8 @@ App.vue:659 caca -> start caca
                   break;
                 case 0x55:
                   this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
+                  clearInterval(this.ser.connectTimer);
+                  this.ser.connectTimer = null;
                   await this.wait(50);
                   //0x55, 0x76, 0x83
                   this.sendBytes([0x7c]);
@@ -966,10 +975,9 @@ App.vue:659 caca -> start caca
         await this.slowInit19(ecuAddress);
         this.debug(`5 Baud: ${performance.now() - start}\n`);
         this.ser.stage++;
+      } else {
+        this.sendToEcu([0xd1]);
       }
-       else {
-         this.sendToEcu([0xd1]);
-       }
       this.waitReply = false;
       while (this.ser.port?.readable) {
         this.ser.reader = this.ser.port.readable.getReader();
@@ -1037,7 +1045,7 @@ App.vue:659 caca -> start caca
               }
               this.waitReply = false; // Allow commands to be sent
               let data = this.hex(dataframe);
-console.log(`process ${cmd}`)
+              console.log(`process ${cmd}`);
               switch (cmd) {
                 case 0x00:
                   len_cmd = 0;
@@ -1130,7 +1138,7 @@ console.log(`process ${cmd}`)
                 dataframe = [];
               }
             } else {
-            console.log( `len error dataframe.length: ${dataframe.length} len_cmd:${len_cmd}`);
+              console.log(`len error dataframe.length: ${dataframe.length} len_cmd:${len_cmd}`);
             }
           }
         } catch (error) {
