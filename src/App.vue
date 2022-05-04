@@ -914,6 +914,195 @@ break 0
           return 3;
       }
     },
+async openSerialPortWork() {
+      this.ser.port = await navigator.serial.requestPort();
+      try {
+        await this.ser.port.open({
+          baudRate: 9600,
+          databits: 8,
+          bufferSize: 128,
+          parity: "none",
+          stopbits: 1,
+          flowControl: "none",
+        });
+      } catch (error) {
+        this.debug("port is already open - refresh page to close");
+        return;
+      }
+      let ecuAddress = 0x16;
+      this.debug("Attempting ECnoreU connection... (address: " + ecuAddress + ") (slow init)");
+      this.debug("Starting slow init, this takes 2 seconds to send");
+      await this.ser.port.setSignals({ break: false });
+      await this.wait(2000);
+      let before = new Date().getTime();
+      // start bit:
+      await this.ser.port.setSignals({ break: true });
+      await this.waitUntil(before + 200);
+      for (var i = 0; i < 8; i++) {
+        let bit = (ecuAddress >> i) & 1;
+        if (bit > 0) {
+          await this.ser.port.setSignals({ brk: false, break: false });
+        } else {
+          await this.ser.port.setSignals({ brk: true, break: true });
+        }
+        await this.waitUntil(before + 200 + (i + 1) * 200);
+      }
+      // stop bit:
+      await this.ser.port.setSignals({ brk: false, break: false });
+      await this.waitUntil(before + 200 + 8 * 200);
+      this.debug("Done sending slow init");
+      this.waitReply = false;
+      while (this.ser.port?.readable) {
+        this.ser.reader = this.ser.port.readable.getReader();
+        let cmd = 0;
+        let len_cmd = 0;
+        let dataframe: ArrayBuffer[] = [];
+        let going = true;
+        let watchdog = null;
+        try {
+          while (going) {
+            const { value, done } = await this.ser.reader.read();
+            if (done) {
+              console.log("done");
+              going = false;
+              break;
+            }
+            let inbound = Array.from(value);
+            let rest = [];
+            if (len_cmd == 0) {
+              cmd = inbound[0];
+              dataframe = inbound;
+              len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
+            } else {
+              let required = len_cmd - dataframe.length;
+              if (required < 0) {
+                this.debug("cmd length error");
+                len_cmd = 0;
+                required = 0;
+              }
+              if (inbound.length >= required) {
+                rest = inbound.slice(required);
+                inbound = inbound.slice(0, required);
+                dataframe.push(...inbound);
+                this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
+              } else {
+                dataframe.push(...inbound);
+                inbound = [];
+                this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`);
+              }
+            }
+            this.ser.dataframe = dataframe;
+            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
+              this.watchdog = setTimeout(() => {
+                this.watchdog = null;
+                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd}`);
+                len_cmd = 0;
+                dataframe = [];
+              }, 300);
+            }
+            //this.waitReply = false;
+            if (dataframe.length == len_cmd) {
+              if (this.watchdog) {
+                this.debug("watchdog clear");
+                clearTimeout(this.watchdog);
+                this.watchdog = null;
+              }
+              this.waitReply = false; // Allow commands to be sent
+              let data = this.hex(dataframe);
+              
+              switch (cmd) {
+                case 0x00:
+                  len_cmd = 0;
+                      cmd = 0x00;
+                      dataframe = [];
+                  break;
+                case 0x55:
+                  //0x55, 0x76, 0x83
+this.sendBytes([0x7c]);
+         len_cmd = 0;
+                      cmd = 0x00;       
+                      dataframe = [];
+                        break;                  
+                case 0x7c:
+                  this.sendToEcu([0xca]);
+                  break;
+                case 0xca:
+                  this.sendToEcu([0x75]);
+                  break;
+                case 0x75:
+                  this.sendToEcu([0xf4]);
+                  break;
+                case 0xf4:
+                  this.sendToEcu([0xd0]);
+                  break;
+                case 0x7d:
+                  if (data.length > 4) {
+                    this.sendToEcu([0x80]); // Trigger next dataframe
+                    this.parse7D(this.hexToBytes(data.substring(2)));
+                    this.Dataframe.Time = this.Time();
+                    this.Dataframe.Dataframe7d = data.substring(2);
+                  } else {
+                    console.log(`7d: short! ${data.length}`);
+                    if (data.length == 1) {
+                      this.debug("Lost connection...");
+                      len_cmd = 0;
+                      cmd = 0x00;
+                    }
+                  }
+                  break;
+                case 0x80:
+                  if (data.length > 4) {
+                    this.parse80(this.hexToBytes(data.substring(2)));
+                    this.Dataframe.Dataframe80 = data.substring(2);
+                    this.log.MemsData.push({
+                      Time: this.Dataframe.Time,
+                      Dataframe80: this.Dataframe.Dataframe80,
+                      Dataframe7d: this.Dataframe.Dataframe7d,
+                    });
+                  } else {
+                    console.log(`80: short! ${data.length}`);
+                    if (data.length == 1) {
+                      this.debug("Lost connection...");
+                      len_cmd = 0;
+                      cmd = 0x00;
+                    }
+                  }
+                  break;
+                case 0xd0:
+                  this.parseD0(data.substring(2));
+                  break;
+                case 0xd1:
+                  this.parseD1(data.substring(2));
+                  break;
+                default:
+                  break;
+              }
+              len_cmd = 0;
+              dataframe = [];
+              if (rest.length) {
+                dataframe.push(...rest);
+                len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+              }
+              if (dataframe.length >= 40) {
+                this.debug("dataframe too long,");
+                len_cmd = 0;
+                dataframe = [];
+              }
+            }
+          }
+        } catch (error) {
+          this.debug(`error: ${error.message}`);
+          this.debug(error);
+        } finally {
+          this.ser.reader.releaseLock();
+          this.ser.reader = null;
+          this.debug("released lock");
+          await this.wait(1000);
+        }
+      }
+    },
+
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
 
@@ -1367,6 +1556,7 @@ from the inverted key byte 2 from the tester and the inverted address from the E
   <input v-model="ecuAddress" type="text" class="form-control" placeholder="ECU Address" />
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
+<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortWork">Open Serial Port Working</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="newInit()">New Init</button>
