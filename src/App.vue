@@ -851,9 +851,6 @@ App.vue:659 caca -> start caca
                   break;
                 case 0x55:
                   this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
-                  
-                  this.ser.connectTimer = null;
-   
                   this.debug(`pause ${this.ser.pause}`);
                   await this.wait(this.ser.pause);
                   //0x55, 0x76, 0x83
@@ -867,6 +864,7 @@ App.vue:659 caca -> start caca
                 case 0x7c:
                   this.debug("got 7c -> ca");
                   clearInterval(this.ser.connectTimer);
+                  this.ser.connectTimer = null;
                   this.sendBytes([0xca]);
                   break;
 
