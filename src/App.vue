@@ -63,6 +63,7 @@ export default {
         buffer: "" as string,
         stage: 0,
         retries: 0,
+        pause:5 
       },
       ECUID: "",
       ECUSerial: "",
@@ -749,7 +750,8 @@ App.vue:659 caca -> start caca
       this.ser.stage = 1;
       let ecuAddress = 0x16;
       this.ser.retries = 10;
-        const start = performance.now();
+      
+      const start = performance.now();
 
       this.debug('pausing..');
       this.ser.connectTimer = setInterval(async () => {
@@ -849,20 +851,22 @@ App.vue:659 caca -> start caca
                   break;
                 case 0x55:
                   this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
-                  clearInterval(this.ser.connectTimer);
+                  
                   this.ser.connectTimer = null;
    
-                  this.debug('pause');
-                  await this.wait(120);
+                  this.debug(`pause ${this.ser.pause}`);
+                  await this.wait(this.ser.pause);
                   //0x55, 0x76, 0x83
                   this.debug('engage');
                   this.sendBytes([0x7c]);
+                  this.ser.pause=this.ser.pause+5
                   len_cmd = 0;
                   cmd = 0x00;
                   dataframe = [];
                   break;
                 case 0x7c:
                   this.debug("got 7c -> ca");
+                  clearInterval(this.ser.connectTimer);
                   this.sendBytes([0xca]);
                   break;
 
