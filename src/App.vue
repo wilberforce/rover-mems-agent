@@ -749,12 +749,12 @@ App.vue:659 caca -> start caca
       this.ser.stage = 1;
       let ecuAddress = 0x16;
       this.ser.retries = 10;
+        const start = performance.now();
 
       this.debug('pausing..');
       this.ser.connectTimer = setInterval(async () => {
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
-        const start = performance.now();
         await this.ser.port.setSignals({ break: false });
         let pause = 200;
         await this.wait(pause * 10);
@@ -777,7 +777,7 @@ App.vue:659 caca -> start caca
         await this.waitUntil(before + pause + 8 * pause);
         this.ser.stage++;
         this.debug(`done slow: ${performance.now() - start}\n`);
-      }, 4000);
+      }, 5000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -851,8 +851,11 @@ App.vue:659 caca -> start caca
                   this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
                   clearInterval(this.ser.connectTimer);
                   this.ser.connectTimer = null;
-                  await this.wait(50);
+   
+                  this.debug('pause');
+                  await this.wait(120);
                   //0x55, 0x76, 0x83
+                  this.debug('engage');
                   this.sendBytes([0x7c]);
                   len_cmd = 0;
                   cmd = 0x00;
