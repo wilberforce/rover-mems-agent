@@ -1008,6 +1008,7 @@ Got D0 and ECU ID
 
         if (1) {
           let pause = 100;
+          start = performance.now();
           await this.ser.port.setSignals({ break: false });
           await this.wait(pause * 5);
           await this.ser.port.setSignals({ break: true });
@@ -1020,6 +1021,7 @@ Got D0 and ECU ID
           await this.wait(pause * 2);
           await this.ser.port.setSignals({ break: false });
           await this.wait(pause * 5);
+          this.debug(`after: ${performance.now() - start}\n`);
         } else {
           await this.ser.port.setSignals({ break: false });
           let pause = 180;
