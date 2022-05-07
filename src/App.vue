@@ -64,7 +64,7 @@ export default {
         stage: 0,
         retries: 0,
         pause: 0,
-        baud5init: false
+        baud5init: false,
       },
       ECUID: "",
       ECUSerial: "",
@@ -999,48 +999,65 @@ Got D0 and ECU ID
       let start = 0;
 
       this.sendBytes([0xca]);
-                  
+
       this.debug("pausing..");
       this.ser.connectTimer = setInterval(async () => {
-        if ( !this.baud5init ) return;
+        if (!this.baud5init) return;
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
-        await this.ser.port.setSignals({ break: false });
-        let pause = 180;
-        start = performance.now();
-        await this.wait(2000);
-        this.debug(`0xff: ${performance.now() - start}\n`);
 
-        let before = performance.now();
-        let last = performance.now();
+        if (1) {
+          let pause = 100;
+          await this.ser.port.setSignals({ break: false });
+          await this.wait(pause * 5);
+          await this.ser.port.setSignals({ break: true });
+          await this.wait(pause * 2);
+          await this.ser.port.setSignals({ break: false });
+          await this.wait(pause * 1);
+          await this.ser.port.setSignals({ break: true });
+          await this.wait(pause * 1);
+          await this.ser.port.setSignals({ break: false });
+          await this.wait(pause * 2);
+          await this.ser.port.setSignals({ break: false });
+          await this.wait(pause * 5);
+        } else {
+          await this.ser.port.setSignals({ break: false });
+          let pause = 180;
+          start = performance.now();
+          await this.wait(2000);
+          this.debug(`0xff: ${performance.now() - start}\n`);
 
-        await this.ser.port.setSignals({ break: true });
-        await this.waitUntilPerf(before + pause);
+          let before = performance.now();
+          let last = performance.now();
 
-        let split = 0;
-        let next = 0;
-        await this.wait(pause);
+          await this.ser.port.setSignals({ break: true });
+          await this.waitUntilPerf(before + pause);
 
-        for (var i = 0; i < 8; i++) {
-          let bit = (ecuAddress >> i) & 1;
-          if (bit > 0) {
-            await this.ser.port.setSignals({ brk: false, break: false });
-          } else {
-            await this.ser.port.setSignals({ brk: true, break: true });
+          let split = 0;
+          let next = 0;
+          await this.wait(pause);
+
+          for (var i = 0; i < 8; i++) {
+            let bit = (ecuAddress >> i) & 1;
+            if (bit > 0) {
+              await this.ser.port.setSignals({ brk: false, break: false });
+            } else {
+              await this.ser.port.setSignals({ brk: true, break: true });
+            }
+            next = performance.now();
+            split = next - last;
+            last = next;
+            //this.debug(`doing slow: ${i} ${bit} ${split} ${performance.now() - start}\n`);
+            await this.waitUntilPerf(before + pause + (i + 1) * pause);
           }
-          next = performance.now();
-          split = next - last;
-          last = next;
-          //this.debug(`doing slow: ${i} ${bit} ${split} ${performance.now() - start}\n`);
-          await this.waitUntilPerf(before + pause + (i + 1) * pause);
-        }
-        // stop bit:
-        await this.ser.port.setSignals({ brk: false, break: false });
+          // stop bit:
+          await this.ser.port.setSignals({ brk: false, break: false });
 
-        await this.waitUntilPerf(before + 10 * pause);
-        await this.wait(pause);
-        this.ser.stage++;
-        this.debug(`done slow: ${performance.now() - start}\n`);
+          await this.waitUntilPerf(before + 10 * pause);
+          await this.wait(pause);
+          this.ser.stage++;
+          this.debug(`done slow: ${performance.now() - start}\n`);
+        }
       }, 5000);
 
       this.waitReply = false;
@@ -1072,7 +1089,7 @@ Got D0 and ECU ID
               if (required < 0) {
                 this.debug(`cmd length error ${cmd} ${len_cmd} vs ${dataframe.length} ${this.hex(dataframe)}`);
                 len_cmd = 0;
-                required = 0
+                required = 0;
               }
               if (inbound.length >= required) {
                 rest = inbound.slice(required);
@@ -1090,18 +1107,17 @@ Got D0 and ECU ID
               this.watchdog = setTimeout(() => {
                 this.watchdog = null;
                 this.debug(`watchdog timeout ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
-                if ( cmd === 0xca ) {
-                  this.baud5init=true;
+                if (cmd === 0xca) {
+                  this.baud5init = true;
                 }
                 len_cmd = 0;
                 dataframe = [];
-                
-        if (!this.waitReply && this.queuedBytes.length) {
-          this.expectingBytes = this.queuedBytes.pop();
-          this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
-          this.sendBytes([this.expectingBytes]);
-        }
-        
+
+                if (!this.waitReply && this.queuedBytes.length) {
+                  this.expectingBytes = this.queuedBytes.pop();
+                  this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
+                  this.sendBytes([this.expectingBytes]);
+                }
               }, 500);
             }
             //this.waitReply = false;
@@ -1155,8 +1171,7 @@ Got D0 and ECU ID
                   break;
                 case 0x7d:
                   if (data.length > 4) {
-                    if (this.record.timer) 
-                      this.sendToEcu([0x80]); // Trigger next dataframe
+                    if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
                     this.parse7D(this.hexToBytes(data.substring(2)));
                     this.Dataframe.Time = this.Time();
                     this.Dataframe.Dataframe7d = data.substring(2);
@@ -1171,8 +1186,7 @@ Got D0 and ECU ID
                   break;
                 case 0x80:
                   if (data.length > 4) {
-                    if (this.record.timer) 
-                      this.sendToEcu([0x7d]); // Trigger next dataframe
+                    if (this.record.timer) this.sendToEcu([0x7d]); // Trigger next dataframe
                     this.parse80(this.hexToBytes(data.substring(2)));
                     this.Dataframe.Dataframe80 = data.substring(2);
                     this.log.MemsData.push({
@@ -1254,7 +1268,7 @@ Got D0 and ECU ID
       this.ser.dataframe = [];
       if (this.ser.stage == 0) {
         this.debug(`Attempting ECU connection... 0x${ecuAddress.toString(16)}(slow init)`);
-        await this.slowInit19(ecuAddress);
+        await this.slowInit19new(ecuAddress);
         this.debug(`5 Baud: ${performance.now() - start}\n`);
         this.ser.stage++;
       } else {
@@ -1297,7 +1311,6 @@ Got D0 and ECU ID
                 len_cmd = 0;
                 required = 0;
                 this.sendBytes([0xf0]);
-
               }
               if (inbound.length >= required) {
                 rest = inbound.slice(required);
@@ -1459,7 +1472,7 @@ Got D0 and ECU ID
       await this.waitUntil(before + 200);
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-        //this.debug(i + " " + bit);
+        this.debug(i + " " + bit);
         if (bit > 0) {
           await this.ser.port.setSignals({ break: false });
         } else {
@@ -1738,13 +1751,13 @@ Got D0 and ECU ID
     <p></p>
 
     <div class="btn-group mr-2" role="group">
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x94])">-</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x93])">-</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
           >Ignition Advance Δ <span class="ml-1 badge badge-dark">{{ Dataframe.IgnitionAdvanceOffset80 }}</span></label
         ></span
       >
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x93])">+</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x94])">+</button>
     </div>
   </div>
 
