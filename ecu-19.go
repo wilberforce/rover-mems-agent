@@ -48,7 +48,8 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 	ecu1xLoop(sp, true)
 
   // clear the line
-	sp.SetBreak(false)
+  fmt.Printf("Time 0: %s\n", time.Now());
+  sp.SetBreak(false)
 	time.Sleep(2000 * time.Millisecond)
 
   start := time.Now()
@@ -76,11 +77,14 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
   }
   // stop bit
-	sp.SetBreak(false)
+  fmt.Printf("Time B - before stop bit: %s\n", time.Now());
+  sp.SetBreak(false)
 	//fmt.Println("break 0")
-	//fmt.Printf("Time B - before stop bit: %s\n", time.Now());
-  sleepUntil(start, 200 + (8*200) + 200)
-  fmt.Printf("Time C - after stop bit: %s\n", time.Now());
+	sleepUntil(start, 200 + (8*200) + 200)
+  fmt.Printf("Time C! - after stop bit: %s\n", time.Now());
+
+  //Time A: 2022-05-06 14:06:45.2822048 +1200 NZST m=+58.368513601
+  //Time C: 2022-05-06 14:06:47.295552 +1200 NZST m=+60.381860801
 	buffer := make([]byte, 0)
 
 	readLoops := 0
@@ -104,7 +108,6 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
 		
 		for len(buffer) > 0 && buffer[0] == 0x00 {
-			fmt.Printf("Time D - Dropping 0x00\n", time.Now());
 			fmt.Printf("\n")
 			buffer = buffer[1:]
 		}
@@ -120,12 +123,13 @@ func readFirstBytesFromPortEcu19(fn string) ([]byte, error) {
 
 	  
 			buffer = nil
-			time.Sleep(50 * time.Millisecond) // TODO: is this the right sleep?
-      // todo: invert (xor) byte 2 (x83) and send back to ecu
+			//time.Sleep(50 * time.Millisecond) // TODO: is this the right sleep?
+			// todo: invert (xor) byte 2 (x83) and send back to ecu
       // 0x83, 1000 0011 -> 0x7C 0111 1100
       // doing manually for now (doesn't hurt)
       sp.Write(ecu19SpecificInitCommand)
-			continue
+	  fmt.Printf("Time after 7c send\n", time.Now());
+	  continue
 		}
 
 		

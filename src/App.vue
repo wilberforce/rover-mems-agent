@@ -63,7 +63,8 @@ export default {
         buffer: "" as string,
         stage: 0,
         retries: 0,
-        pause:5 
+        pause: 0,
+        baud5init: false
       },
       ECUID: "",
       ECUSerial: "",
@@ -497,7 +498,9 @@ export default {
     recordStart() {
       this.waitReply = false;
       this.recordStop();
-      //this.record.timer = setInterval(() => this.pollDataframes(), 1000);
+      this.record.timer = setInterval(() => {
+        //this.pollDataframes()
+      }, 1000);
       this.sendToEcu([0x80]);
     },
     recordStop() {
@@ -629,6 +632,18 @@ export default {
       //this.debug({ms:ms,actual:performance.now() - start});
     },
 
+    async waitUntilPerf(timestampMs) {
+      const start = performance.now();
+      while (performance.now() < timestampMs) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        let delta = performance.now() - start;
+        if (delta < 10) {
+          while (performance.now() < timestampMs) {}
+          return;
+        }
+      }
+    },
+
     async sendToEcu(bytes) {
       if (!this.waitReply) {
         this.sendBytes(bytes);
@@ -682,6 +697,11 @@ export default {
       if (this.ser.reader) {
         await this.ser.reader.cancel();
       }
+      if (this.ser.connectTimer) {
+        clearInterval(this.ser.connectTimer);
+        this.ser.connectTimer = null;
+      }
+
       if (this.ser.port) await this.ser.port.close();
       this.ser.reader = null;
       this.ser.port = null;
@@ -695,6 +715,8 @@ export default {
         case 0x55: // Stage 1 init
           return 3;
         case 0x7c: // Stage 2 init
+        case 0xca: // Stage 2 init
+        case 0x75: // Stage 2 init
           return 2;
         case 0x80:
           if (dataframe.length > 2) return dataframe[2] + 2; // command is 0x1c=> 28 + 2 = 30
@@ -731,9 +753,15 @@ App.vue:659 watchdog clear
 App.vue:659 got 7c -> ca
 App.vue:710 Cmd: ca
 App.vue:659 caca -> start caca
+
+Got CA
+Got 75
+Got F4 00
+Got D0 and ECU ID
+
 */
 
-    async openSerialPortWorking() {
+    async openSerialPortWorkingOld() {
       this.ser.port = await navigator.serial.requestPort();
       try {
         await this.ser.port.open({
@@ -751,17 +779,17 @@ App.vue:659 caca -> start caca
       this.ser.stage = 1;
       let ecuAddress = 0x16;
       this.ser.retries = 10;
-      
+
       const start = performance.now();
 
-      this.debug('pausing..');
+      this.debug("pausing..");
       this.ser.connectTimer = setInterval(async () => {
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
         await this.ser.port.setSignals({ break: false });
-        let pause = 200;
-        await this.wait(pause * 10);
-        this.debug(`0xff: ${performance.now() - start}\n`);
+        let pause = 180;
+        // await this.wait(pause * 10);
+        //this.debug(`0xff: ${performance.now() - start}\n`);
 
         let before = new Date().getTime();
         await this.ser.port.setSignals({ break: true });
@@ -780,11 +808,11 @@ App.vue:659 caca -> start caca
         await this.waitUntil(before + pause + 8 * pause);
         this.ser.stage++;
         this.debug(`done slow: ${performance.now() - start}\n`);
-      }, 5000);
+      }, 3000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
-        this.debug('listening..');
+        this.debug("listening..");
         this.ser.reader = this.ser.port.readable.getReader();
         let cmd = 0;
         let len_cmd = 0;
@@ -809,7 +837,7 @@ App.vue:659 caca -> start caca
             } else {
               let required = len_cmd - dataframe.length;
               if (required < 0) {
-                this.debug("cmd length error");
+                this.debug(`cmd length error ${cmd} ${len_cmd} vs ${dataframe.length}`);
                 len_cmd = 0;
                 required = 0;
               }
@@ -852,15 +880,13 @@ App.vue:659 caca -> start caca
                   break;
                 case 0x55:
                   this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
-                  
-                  this.ser.connectTimer = null;
-   
+
                   this.debug(`pause ${this.ser.pause}`);
                   await this.wait(this.ser.pause);
                   //0x55, 0x76, 0x83
-                  this.debug('engage');
+                  this.debug("engage");
                   this.sendBytes([0x7c]);
-                  this.ser.pause=this.ser.pause+5
+                  this.ser.pause = this.ser.pause + 5;
                   len_cmd = 0;
                   cmd = 0x00;
                   dataframe = [];
@@ -868,6 +894,7 @@ App.vue:659 caca -> start caca
                 case 0x7c:
                   this.debug("got 7c -> ca");
                   clearInterval(this.ser.connectTimer);
+                  this.ser.connectTimer = null;
                   this.sendBytes([0xca]);
                   break;
 
@@ -881,8 +908,8 @@ App.vue:659 caca -> start caca
                   this.sendBytes([0xf4]);
                   break;
                 case 0xf4:
-                  this.debug("got f4 -> d0");
-                  this.sendBytes([0xd0]);
+                  this.debug("got f4 -> d1");
+                  this.sendBytes([0xd1]);
                   break;
                 case 0x7d:
                   if (data.length > 4) {
@@ -968,21 +995,32 @@ App.vue:659 caca -> start caca
       this.ser.stage = 1;
       let ecuAddress = 0x16;
       this.ser.retries = 10;
-      
-      const start = performance.now();
 
-      this.debug('pausing..');
+      let start = 0;
+
+      this.sendBytes([0xca]);
+                  
+      this.debug("pausing..");
       this.ser.connectTimer = setInterval(async () => {
+        if ( !this.baud5init ) return;
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
         await this.ser.port.setSignals({ break: false });
-        let pause = 200;
-        await this.wait(pause * 10);
+        let pause = 180;
+        start = performance.now();
+        await this.wait(2000);
         this.debug(`0xff: ${performance.now() - start}\n`);
 
-        let before = new Date().getTime();
+        let before = performance.now();
+        let last = performance.now();
+
         await this.ser.port.setSignals({ break: true });
-        await this.waitUntil(before + pause);
+        await this.waitUntilPerf(before + pause);
+
+        let split = 0;
+        let next = 0;
+        await this.wait(pause);
+
         for (var i = 0; i < 8; i++) {
           let bit = (ecuAddress >> i) & 1;
           if (bit > 0) {
@@ -990,18 +1028,24 @@ App.vue:659 caca -> start caca
           } else {
             await this.ser.port.setSignals({ brk: true, break: true });
           }
-          await this.waitUntil(before + pause + (i + 1) * pause);
+          next = performance.now();
+          split = next - last;
+          last = next;
+          //this.debug(`doing slow: ${i} ${bit} ${split} ${performance.now() - start}\n`);
+          await this.waitUntilPerf(before + pause + (i + 1) * pause);
         }
         // stop bit:
         await this.ser.port.setSignals({ brk: false, break: false });
-        await this.waitUntil(before + pause + 8 * pause);
+
+        await this.waitUntilPerf(before + 10 * pause);
+        await this.wait(pause);
         this.ser.stage++;
         this.debug(`done slow: ${performance.now() - start}\n`);
       }, 5000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
-        this.debug('listening..');
+        this.debug("listening..");
         this.ser.reader = this.ser.port.readable.getReader();
         let cmd = 0;
         let len_cmd = 0;
@@ -1026,9 +1070,9 @@ App.vue:659 caca -> start caca
             } else {
               let required = len_cmd - dataframe.length;
               if (required < 0) {
-                this.debug("cmd length error");
+                this.debug(`cmd length error ${cmd} ${len_cmd} vs ${dataframe.length} ${this.hex(dataframe)}`);
                 len_cmd = 0;
-                required = 0;
+                required = 0
               }
               if (inbound.length >= required) {
                 rest = inbound.slice(required);
@@ -1045,15 +1089,25 @@ App.vue:659 caca -> start caca
             if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
               this.watchdog = setTimeout(() => {
                 this.watchdog = null;
-                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd} ox${cmd.toString(16)}`);
+                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
+                if ( cmd === 0xca ) {
+                  this.baud5init=true;
+                }
                 len_cmd = 0;
                 dataframe = [];
+                
+        if (!this.waitReply && this.queuedBytes.length) {
+          this.expectingBytes = this.queuedBytes.pop();
+          this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
+          this.sendBytes([this.expectingBytes]);
+        }
+        
               }, 500);
             }
             //this.waitReply = false;
             if (dataframe.length == len_cmd) {
               if (this.watchdog) {
-                this.debug("watchdog clear");
+                //this.debug("watchdog clear");
                 clearTimeout(this.watchdog);
                 this.watchdog = null;
               }
@@ -1062,7 +1116,7 @@ App.vue:659 caca -> start caca
 
               switch (cmd) {
                 case 0x00:
-                  this.debug(`0x00: ${performance.now() - start}\n`);
+                  //this.debug(`0x00: ${performance.now() - start}\n`);
                   len_cmd = 0;
                   cmd = 0x00;
                   dataframe = [];
@@ -1070,11 +1124,11 @@ App.vue:659 caca -> start caca
                 case 0x55:
                   this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
                   this.debug(`pause ${this.ser.pause}`);
-                  await this.wait(this.ser.pause);
+                  //await this.wait(this.ser.pause);
                   //0x55, 0x76, 0x83
-                  this.debug('engage');
+                  this.debug("engage");
                   this.sendBytes([0x7c]);
-                  this.ser.pause=this.ser.pause+5
+                  //this.ser.pause = this.ser.pause + 5;
                   len_cmd = 0;
                   cmd = 0x00;
                   dataframe = [];
@@ -1096,12 +1150,13 @@ App.vue:659 caca -> start caca
                   this.sendBytes([0xf4]);
                   break;
                 case 0xf4:
-                  this.debug("got f4 -> d0");
-                  this.sendBytes([0xd0]);
+                  this.debug("got f4 -> d1");
+                  this.sendBytes([0xd1]);
                   break;
                 case 0x7d:
                   if (data.length > 4) {
-                    this.sendToEcu([0x80]); // Trigger next dataframe
+                    if (this.record.timer) 
+                      this.sendToEcu([0x80]); // Trigger next dataframe
                     this.parse7D(this.hexToBytes(data.substring(2)));
                     this.Dataframe.Time = this.Time();
                     this.Dataframe.Dataframe7d = data.substring(2);
@@ -1116,6 +1171,8 @@ App.vue:659 caca -> start caca
                   break;
                 case 0x80:
                   if (data.length > 4) {
+                    if (this.record.timer) 
+                      this.sendToEcu([0x7d]); // Trigger next dataframe
                     this.parse80(this.hexToBytes(data.substring(2)));
                     this.Dataframe.Dataframe80 = data.substring(2);
                     this.log.MemsData.push({
@@ -1133,9 +1190,11 @@ App.vue:659 caca -> start caca
                   }
                   break;
                 case 0xd0:
+                  this.sendBytes([0x79]);
                   this.parseD0(data.substring(2));
                   break;
                 case 0xd1:
+                  this.sendBytes([0x80]);
                   this.parseD1(data.substring(2));
                   break;
                 default:
@@ -1237,6 +1296,8 @@ App.vue:659 caca -> start caca
                 this.debug("cmd length error");
                 len_cmd = 0;
                 required = 0;
+                this.sendBytes([0xf0]);
+
               }
               if (inbound.length >= required) {
                 rest = inbound.slice(required);
@@ -1303,7 +1364,7 @@ App.vue:659 caca -> start caca
                   this.sendBytes([0xf4]);
                   break;
                 case 0xf4:
-                  this.sendBytes([0xd0]);
+                  this.sendBytes([0x80]);
                   break;
                 case 0x7d:
                   if (data.length > 4) {
@@ -1562,7 +1623,7 @@ App.vue:659 caca -> start caca
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortWork">Open Serial Port Work</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortWorking">Open Serial Port Work Old</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortWorkingOld">Open Serial Port Work Old</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="slowInit19(0x16, true)">slowInit19</button>
@@ -1671,7 +1732,7 @@ App.vue:659 caca -> start caca
           >Idle Speed <span class="ml-1 badge badge-dark"> SetPoint: {{ Dataframe.IdleSetPoint }} </span></label
         ></span
       >
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x791])">+</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x91])">+</button>
     </div>
 
     <p></p>
