@@ -1007,12 +1007,16 @@ Got D0 and ECU ID
         this.ser.retries--;
 
         if (1) {
-          let pause = 100;
+          let pause = 190;
           start = performance.now();
           await this.ser.port.setSignals({ break: false });
-          await this.wait(pause * 5);
+          await this.wait(pause *3);
           await this.ser.port.setSignals({ break: true });
           await this.wait(pause * 2);
+          await this.ser.port.setSignals({ break: false });
+          await this.wait(pause * 1);
+          await this.ser.port.setSignals({ break: true });
+          await this.wait(pause * 1);  
           await this.ser.port.setSignals({ break: false });
           await this.wait(pause * 1);
           await this.ser.port.setSignals({ break: true });
@@ -1020,11 +1024,11 @@ Got D0 and ECU ID
           await this.ser.port.setSignals({ break: false });
           await this.wait(pause * 2);
           await this.ser.port.setSignals({ break: false });
-          await this.wait(pause * 5);
+          await this.wait(pause * 3);
           this.debug(`after: ${performance.now() - start}\n`);
         } else {
           await this.ser.port.setSignals({ break: false });
-          let pause = 180;
+          let pause = 190;
           start = performance.now();
           await this.wait(2000);
           this.debug(`0xff: ${performance.now() - start}\n`);
@@ -1042,8 +1046,10 @@ Got D0 and ECU ID
           for (var i = 0; i < 8; i++) {
             let bit = (ecuAddress >> i) & 1;
             if (bit > 0) {
+              this.debug(bit)
               await this.ser.port.setSignals({ brk: false, break: false });
             } else {
+              this.debug(bit)
               await this.ser.port.setSignals({ brk: true, break: true });
             }
             next = performance.now();
@@ -1085,7 +1091,7 @@ Got D0 and ECU ID
               cmd = inbound[0];
               dataframe = inbound;
               len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
+              //this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
             } else {
               let required = len_cmd - dataframe.length;
               if (required < 0) {
@@ -1108,19 +1114,20 @@ Got D0 and ECU ID
             if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
               this.watchdog = setTimeout(() => {
                 this.watchdog = null;
-                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
+                this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
                   this.baud5init = true;
                 }
                 len_cmd = 0;
                 dataframe = [];
-
+/*
                 if (!this.waitReply && this.queuedBytes.length) {
                   this.expectingBytes = this.queuedBytes.pop();
                   this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
                   this.sendBytes([this.expectingBytes]);
                 }
-              }, 500);
+  */
+             }, 900);
             }
             //this.waitReply = false;
             if (dataframe.length == len_cmd) {
