@@ -389,7 +389,7 @@ export default {
               this.replayWrite("557583", false);
               break;
             case 0xca:
-              this.replayWrite("CA", false);
+              this.replayWrite("CAE9", false);
               break;
             case 75:
               this.replayWrite("75", false);
@@ -454,7 +454,7 @@ export default {
       if (imported_data.MemsData.length >= this.replay.step) {
         let data = imported_data.MemsData[this.replay.step];
         if (data && this.replay.port) {
-          this.replayWrite(data.Dataframe7d);
+          this.replayWrite(data.Dataframe7d.padEnd(68, "0")); // Pad 1.6 mems data to 70 bytes
         } else {
           this.replaySerialStop();
         }
@@ -767,7 +767,7 @@ Got D0 and ECU ID
         await this.ser.port.open({
           baudRate: 9600,
           databits: 8,
-          bufferSize: 35,
+          bufferSize: 64,
           parity: "none",
           stopbits: 1,
           flowControl: "none",
@@ -796,10 +796,10 @@ Got D0 and ECU ID
           this.debug(`before: ${performance.now() - start}\n`);
           //await this.ser.port.setSignals({ break: false });
           //await this.wait(pause *3);
-//
+          //
 
-//1011010000
-//10100101
+          //1011010000
+          //10100101
 
           await this.ser.port.setSignals({ break: true });
           await this.sleep(pause * 10);
@@ -809,7 +809,7 @@ Got D0 and ECU ID
           await this.ser.port.setSignals({ break: false });
           await this.sleep(pause * 1);
           await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);  
+          await this.sleep(pause * 1);
           await this.ser.port.setSignals({ break: false });
           await this.sleep(pause * 2);
           await this.ser.port.setSignals({ break: true });
@@ -837,7 +837,7 @@ Got D0 and ECU ID
           this.debug(`after: ${performance.now() - start}\n`);
         } else {
           await this.ser.port.setSignals({ break: false });
-          let pause = 190;
+          let pause = 200;
           start = performance.now();
           await this.wait(2000);
           this.debug(`0xff: ${performance.now() - start}\n`);
@@ -909,11 +909,12 @@ Got D0 and ECU ID
                 required = 0;
               }
               if (inbound.length >= required) {
-                this.debug(`inbound was: ${this.hex(inbound)}\n` );
+                this.debug(`inbound was: ${this.hex(inbound)}\n`);
                 rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
                 this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
+                debugger;
               } else {
                 dataframe.push(...inbound);
                 inbound = [];
@@ -922,31 +923,21 @@ Got D0 and ECU ID
             }
             this.ser.dataframe = dataframe;
             if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog2 == null) {
-              if ( this.watchdog2 )
-{
-  clearTimeout(this.watchdog2);
-}              this.watchdog2 = setTimeout(() => {
+              if (this.watchdog2) {
+                clearTimeout(this.watchdog2);
+              }
+              this.watchdog2 = setTimeout(() => {
                 this.watchdog2 = null;
                 this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
                   this.baud5init = true;
                 }
-                this.waitReply=false;
-                
+                this.waitReply = false;
+
                 len_cmd = 0;
                 dataframe = [];
-                this.waitReply=false;
-
-                //if ( cmd === 0x80 || cmd === 0x7d )this.sendToEcu([cmd]);
-                
-               /*
-                if (!this.waitReply && this.queuedBytes.length) {
-                  this.expectingBytes = this.queuedBytes.pop();
-                  this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
-                  this.sendBytes([this.expectingBytes]);
-                }
-  */
-             }, 500);
+                this.waitReply = false;
+              }, 500);
             }
             //this.waitReply = false;
             if (dataframe.length == len_cmd) {
@@ -958,95 +949,15 @@ Got D0 and ECU ID
               this.waitReply = false; // Allow commands to be sent
               let data = this.hex(dataframe);
 
-              switch (cmd) {
-                case 0x00:
-                  //this.debug(`0x00: ${performance.now() - start}\n`);
-                  len_cmd = 0;
-                  cmd = 0x00;
-                  dataframe = [];
-                  break;
-                case 0x55:
-                  this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
-                  this.debug(`pause ${this.ser.pause}`);
-                  //await this.wait(this.ser.pause);
-                  //0x55, 0x76, 0x83
-                  this.debug("engage");
-                  this.sendBytes([0x7c]);
-                  //this.ser.pause = this.ser.pause + 5;
-                  len_cmd = 0;
-                  cmd = 0x00;
-                  dataframe = [];
-                  break;
-                case 0x7c:
-                  this.debug("got 7c -> ca");
-                  clearInterval(this.ser.connectTimer);
-                  this.ser.connectTimer = null;
-                  this.sendBytes([0xca]);
-                  break;
-
-                  break;
-                case 0xca:
-                  this.debug("got ca -> 75");
-                  this.sendBytes([0x75]);
-                  break;
-                case 0x75:
-                  this.debug("got 75 -> f4");
-                  this.sendBytes([0xf4]);
-                  break;
-                case 0xf4:
-                  this.debug("got f4 -> d1");
-                  this.sendBytes([0xd1]);
-                  break;
-                case 0x7d:
-                  if (data.length > 4) {
-                    if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
-                    this.parse7D(this.hexToBytes(data.substring(2)));
-                    this.Dataframe.Time = this.Time();
-                    this.Dataframe.Dataframe7d = data.substring(2);
-                  } else {
-                    console.log(`7d: short! ${data.length}`);
-                    if (data.length == 1) {
-                      this.debug("Lost connection...");
-                      len_cmd = 0;
-                      cmd = 0x00;
-                    }
-                  }
-                  break;
-                case 0x80:
-                  if (data.length > 4) {
-                    if (this.record.timer) this.sendToEcu([0x7d]); // Trigger next dataframe
-                    this.parse80(this.hexToBytes(data.substring(2)));
-                    this.Dataframe.Dataframe80 = data.substring(2);
-                    this.log.MemsData.push({
-                      Time: this.Dataframe.Time,
-                      Dataframe80: this.Dataframe.Dataframe80,
-                      Dataframe7d: this.Dataframe.Dataframe7d,
-                    });
-                  } else {
-                    console.log(`80: short! ${data.length}`);
-                    if (data.length == 1) {
-                      this.debug("Lost connection...");
-                      len_cmd = 0;
-                      cmd = 0x00;
-                    }
-                  }
-                  break;
-                case 0xd0:
-                  this.sendBytes([0x79]);
-                  this.parseD0(data.substring(2));
-                  break;
-                case 0xd1:
-                  this.sendBytes([0x80]);
-                  this.parseD1(data.substring(2));
-                  break;
-                default:
-                  break;
-              }
+              this.processCmd(cmd, data);
               len_cmd = 0;
               dataframe = [];
               if (rest.length) {
                 dataframe.push(...rest);
+                cmd = rest[0];
                 len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
+                this.debug(`rest: ${this.hex(rest)}, cmd`);
+                debugger;
               }
               if (dataframe.length >= 40) {
                 this.debug("dataframe too long,");
@@ -1066,8 +977,93 @@ Got D0 and ECU ID
         }
       }
     },
+    processCmd(cmd, data) {
+      switch (cmd) {
+        case 0x00:
+          //this.debug(`0x00: ${performance.now() - start}\n`);
+          len_cmd = 0;
+          cmd = 0x00;
+          dataframe = [];
+          break;
+        case 0x55:
+          this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
+          this.debug(`pause ${this.ser.pause}`);
+          //await this.wait(this.ser.pause);
+          //0x55, 0x76, 0x83
+          this.debug("engage");
+          this.sendBytes([0x7c]);
+          //this.ser.pause = this.ser.pause + 5;
+          len_cmd = 0;
+          cmd = 0x00;
+          dataframe = [];
+          break;
+        case 0x7c:
+          this.debug("got 7c -> ca");
+          clearInterval(this.ser.connectTimer);
+          this.ser.connectTimer = null;
+          this.sendBytes([0xca]);
+          break;
 
-  
+          break;
+        case 0xca:
+          this.debug("got ca -> 75");
+          this.sendBytes([0x75]);
+          break;
+        case 0x75:
+          this.debug("got 75 -> f4");
+          this.sendBytes([0xf4]);
+          break;
+        case 0xf4:
+          this.debug("got f4 -> d1");
+          this.sendBytes([0xd1]);
+          break;
+        case 0x7d:
+          if (data.length > 4) {
+            if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
+            this.parse7D(this.hexToBytes(data.substring(2)));
+            this.Dataframe.Time = this.Time();
+            this.Dataframe.Dataframe7d = data.substring(2);
+          } else {
+            console.log(`7d: short! ${data.length}`);
+            if (data.length == 1) {
+              this.debug("Lost connection...");
+              len_cmd = 0;
+              cmd = 0x00;
+            }
+          }
+          break;
+        case 0x80:
+          if (data.length > 4) {
+            if (this.record.timer) this.sendToEcu([0x7d]); // Trigger next dataframe
+            this.parse80(this.hexToBytes(data.substring(2)));
+            this.Dataframe.Dataframe80 = data.substring(2);
+            this.log.MemsData.push({
+              Time: this.Dataframe.Time,
+              Dataframe80: this.Dataframe.Dataframe80,
+              Dataframe7d: this.Dataframe.Dataframe7d,
+            });
+          } else {
+            console.log(`80: short! ${data.length}`);
+            if (data.length == 1) {
+              this.debug("Lost connection...");
+              len_cmd = 0;
+              cmd = 0x00;
+            }
+          }
+          break;
+        case 0xd0:
+          this.sendBytes([0x7d]);
+          this.parseD0(data.substring(2));
+          break;
+        case 0xd1:
+          this.sendBytes([0x80]);
+          this.parseD1(data.substring(2));
+          break;
+        default:
+          break;
+      }
+    },
+
     async sleepUntil(timestampMs) {
       let now = new Date().getTime();
       let sleepFor = timestampMs - now;
