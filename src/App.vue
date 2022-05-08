@@ -720,12 +720,13 @@ export default {
           return 2;
         case 0x80:
           if (dataframe.length > 2) return dataframe[2] + 2; // command is 0x1c=> 28 + 2 = 30
-          return len_cmd;
+          return 30;
         case 0x7d:
           if (dataframe.length > 2) {
             return dataframe[2] + 2; // command is 34 0x21=>33 + 1
           } // Need to handle case of single byte
-          return len_cmd;
+
+          return 34;
         case 0xd0:
           return 6;
         case 0xd1:
@@ -953,10 +954,10 @@ Got D0 and ECU ID
               len_cmd = 0;
               dataframe = [];
               if (rest.length) {
-                dataframe.push(...rest);
                 cmd = rest[0];
+                dataframe = rest;
                 len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-                this.debug(`rest: ${this.hex(rest)}, cmd`);
+                this.debug(`rest: ${this.hex(rest)}, ${cmd}`);
                 debugger;
               }
               if (dataframe.length >= 40) {
