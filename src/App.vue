@@ -1006,25 +1006,50 @@ Got D0 and ECU ID
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
 
-        if (1) {
+        if (0) {
           let pause = 190;
           start = performance.now();
-          await this.ser.port.setSignals({ break: false });
-          await this.wait(pause *3);
+          this.debug(`before: ${performance.now() - start}\n`);
+          //await this.ser.port.setSignals({ break: false });
+          //await this.wait(pause *3);
+//
+
+//1011010000
+//10100101
+
           await this.ser.port.setSignals({ break: true });
-          await this.wait(pause * 2);
-          await this.ser.port.setSignals({ break: false });
-          await this.wait(pause * 1);
+          await this.sleep(pause * 10);
           await this.ser.port.setSignals({ break: true });
-          await this.wait(pause * 1);  
+          await this.sleep(pause * 1);
+
           await this.ser.port.setSignals({ break: false });
-          await this.wait(pause * 1);
+          await this.sleep(pause * 1);
           await this.ser.port.setSignals({ break: true });
-          await this.wait(pause * 1);
+          await this.sleep(pause * 1);  
           await this.ser.port.setSignals({ break: false });
-          await this.wait(pause * 2);
+          await this.sleep(pause * 2);
+          await this.ser.port.setSignals({ break: true });
+          await this.sleep(pause * 1);
           await this.ser.port.setSignals({ break: false });
-          await this.wait(pause * 3);
+          await this.sleep(pause * 1);
+          await this.ser.port.setSignals({ break: true });
+          await this.sleep(pause * 1);
+          /*
+                    await this.ser.port.setSignals({ break: true });
+          await this.sleep(pause * 2);
+          await this.ser.port.setSignals({ break: false });
+          await this.sleep(pause * 1);
+          await this.ser.port.setSignals({ break: true });
+          await this.sleep(pause * 1);  
+          await this.ser.port.setSignals({ break: false });
+          await this.sleep(pause * 1);
+          await this.ser.port.setSignals({ break: true });
+          await this.sleep(pause * 1);
+          await this.ser.port.setSignals({ break: false });
+          await this.sleep(pause * 2);
+          await this.ser.port.setSignals({ break: true });
+          await this.sleep(pause * 1);
+          */
           this.debug(`after: ${performance.now() - start}\n`);
         } else {
           await this.ser.port.setSignals({ break: false });
@@ -1127,7 +1152,7 @@ Got D0 and ECU ID
                   this.sendBytes([this.expectingBytes]);
                 }
   */
-             }, 900);
+             }, 500);
             }
             //this.waitReply = false;
             if (dataframe.length == len_cmd) {
