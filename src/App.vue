@@ -915,7 +915,7 @@ Got D0 and ECU ID
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
                 this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
-                debugger;
+
               } else {
                 dataframe.push(...inbound);
                 inbound = [];
@@ -958,7 +958,13 @@ Got D0 and ECU ID
                 dataframe = rest;
                 len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
                 this.debug(`rest: ${this.hex(rest)}, ${cmd}`);
-                debugger;
+                let data = this.hex(dataframe);
+
+                if (dataframe.length == len_cmd) {
+                  this.processCmd(cmd, data);
+                  
+                  len_cmd = 0;
+                }
               }
               if (dataframe.length >= 40) {
                 this.debug("dataframe too long,");
@@ -1248,8 +1254,6 @@ Got D0 and ECU ID
     </span>
   </p>
 
-  <label>Stage:</label><input v-model="ser.stage" type="text" class="form-control" placeholder="stage" />
-
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
 
@@ -1291,7 +1295,7 @@ Got D0 and ECU ID
   </button>
 
   Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br />
-  {{ hex(ser.dataframe) }} {{ ser.dataframe.length }} <br />Stage: {{ ser.stage }}
+  Stage: {{ ser.stage }} dataframe: ({{ ser.dataframe.length }}) {{ hex(ser.dataframe) }} <br />
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
