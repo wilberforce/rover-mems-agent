@@ -761,229 +761,13 @@ Got D0 and ECU ID
 
 */
 
-    async openSerialPortWorkingOld() {
+    async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
       try {
         await this.ser.port.open({
           baudRate: 9600,
           databits: 8,
-          bufferSize: 128,
-          parity: "none",
-          stopbits: 1,
-          flowControl: "none",
-        });
-      } catch (error) {
-        this.debug("port is already open - refresh page to close");
-        return;
-      }
-      this.ser.stage = 1;
-      let ecuAddress = 0x16;
-      this.ser.retries = 10;
-
-      const start = performance.now();
-
-      this.debug("pausing..");
-      this.ser.connectTimer = setInterval(async () => {
-        this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
-        this.ser.retries--;
-        await this.ser.port.setSignals({ break: false });
-        let pause = 180;
-        // await this.wait(pause * 10);
-        //this.debug(`0xff: ${performance.now() - start}\n`);
-
-        let before = new Date().getTime();
-        await this.ser.port.setSignals({ break: true });
-        await this.waitUntil(before + pause);
-        for (var i = 0; i < 8; i++) {
-          let bit = (ecuAddress >> i) & 1;
-          if (bit > 0) {
-            await this.ser.port.setSignals({ brk: false, break: false });
-          } else {
-            await this.ser.port.setSignals({ brk: true, break: true });
-          }
-          await this.waitUntil(before + pause + (i + 1) * pause);
-        }
-        // stop bit:
-        await this.ser.port.setSignals({ brk: false, break: false });
-        await this.waitUntil(before + pause + 8 * pause);
-        this.ser.stage++;
-        this.debug(`done slow: ${performance.now() - start}\n`);
-      }, 3000);
-
-      this.waitReply = false;
-      while (this.ser.port?.readable) {
-        this.debug("listening..");
-        this.ser.reader = this.ser.port.readable.getReader();
-        let cmd = 0;
-        let len_cmd = 0;
-        let dataframe: ArrayBuffer[] = [];
-        let going = true;
-        let watchdog = null;
-        try {
-          while (going) {
-            const { value, done } = await this.ser.reader.read();
-            if (done) {
-              console.log("done");
-              going = false;
-              break;
-            }
-            let inbound = Array.from(value);
-            let rest = [];
-            if (len_cmd == 0) {
-              cmd = inbound[0];
-              dataframe = inbound;
-              len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
-            } else {
-              let required = len_cmd - dataframe.length;
-              if (required < 0) {
-                this.debug(`cmd length error ${cmd} ${len_cmd} vs ${dataframe.length}`);
-                len_cmd = 0;
-                required = 0;
-              }
-              if (inbound.length >= required) {
-                rest = inbound.slice(required);
-                inbound = inbound.slice(0, required);
-                dataframe.push(...inbound);
-                //this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
-              } else {
-                dataframe.push(...inbound);
-                inbound = [];
-                //this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`);
-              }
-            }
-            this.ser.dataframe = dataframe;
-            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
-              this.watchdog = setTimeout(() => {
-                this.watchdog = null;
-                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd} ox${cmd.toString(16)}`);
-                len_cmd = 0;
-                dataframe = [];
-              }, 500);
-            }
-            //this.waitReply = false;
-            if (dataframe.length == len_cmd) {
-              if (this.watchdog) {
-                this.debug("watchdog clear");
-                clearTimeout(this.watchdog);
-                this.watchdog = null;
-              }
-              this.waitReply = false; // Allow commands to be sent
-              let data = this.hex(dataframe);
-
-              switch (cmd) {
-                case 0x00:
-                  this.debug(`0x00: ${performance.now() - start}\n`);
-                  len_cmd = 0;
-                  cmd = 0x00;
-                  dataframe = [];
-                  break;
-                case 0x55:
-                  this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
-
-                  this.debug(`pause ${this.ser.pause}`);
-                  await this.wait(this.ser.pause);
-                  //0x55, 0x76, 0x83
-                  this.debug("engage");
-                  this.sendBytes([0x7c]);
-                  this.ser.pause = this.ser.pause + 5;
-                  len_cmd = 0;
-                  cmd = 0x00;
-                  dataframe = [];
-                  break;
-                case 0x7c:
-                  this.debug("got 7c -> ca");
-                  clearInterval(this.ser.connectTimer);
-                  this.ser.connectTimer = null;
-                  this.sendBytes([0xca]);
-                  break;
-
-                  break;
-                case 0xca:
-                  this.debug("got ca -> 75");
-                  this.sendBytes([0x75]);
-                  break;
-                case 0x75:
-                  this.debug("got 75 -> f4");
-                  this.sendBytes([0xf4]);
-                  break;
-                case 0xf4:
-                  this.debug("got f4 -> d1");
-                  this.sendBytes([0xd1]);
-                  break;
-                case 0x7d:
-                  if (data.length > 4) {
-                    this.sendToEcu([0x80]); // Trigger next dataframe
-                    this.parse7D(this.hexToBytes(data.substring(2)));
-                    this.Dataframe.Time = this.Time();
-                    this.Dataframe.Dataframe7d = data.substring(2);
-                  } else {
-                    console.log(`7d: short! ${data.length}`);
-                    if (data.length == 1) {
-                      this.debug("Lost connection...");
-                      len_cmd = 0;
-                      cmd = 0x00;
-                    }
-                  }
-                  break;
-                case 0x80:
-                  if (data.length > 4) {
-                    this.parse80(this.hexToBytes(data.substring(2)));
-                    this.Dataframe.Dataframe80 = data.substring(2);
-                    this.log.MemsData.push({
-                      Time: this.Dataframe.Time,
-                      Dataframe80: this.Dataframe.Dataframe80,
-                      Dataframe7d: this.Dataframe.Dataframe7d,
-                    });
-                  } else {
-                    console.log(`80: short! ${data.length}`);
-                    if (data.length == 1) {
-                      this.debug("Lost connection...");
-                      len_cmd = 0;
-                      cmd = 0x00;
-                    }
-                  }
-                  break;
-                case 0xd0:
-                  this.parseD0(data.substring(2));
-                  break;
-                case 0xd1:
-                  this.parseD1(data.substring(2));
-                  break;
-                default:
-                  break;
-              }
-              len_cmd = 0;
-              dataframe = [];
-              if (rest.length) {
-                dataframe.push(...rest);
-                len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              }
-              if (dataframe.length >= 40) {
-                this.debug("dataframe too long,");
-                len_cmd = 0;
-                dataframe = [];
-              }
-            }
-          }
-        } catch (error) {
-          this.debug(`error: ${error.message}`);
-          this.debug(error);
-        } finally {
-          this.ser.reader.releaseLock();
-          this.ser.reader = null;
-          this.debug("released lock");
-          await this.wait(1000);
-        }
-      }
-    },
-    async openSerialPortWork() {
-      this.ser.port = await navigator.serial.requestPort();
-      try {
-        await this.ser.port.open({
-          baudRate: 9600,
-          databits: 8,
-          bufferSize: 128,
+          bufferSize: 35,
           parity: "none",
           stopbits: 1,
           flowControl: "none",
@@ -1071,10 +855,10 @@ Got D0 and ECU ID
           for (var i = 0; i < 8; i++) {
             let bit = (ecuAddress >> i) & 1;
             if (bit > 0) {
-              this.debug(bit)
+              //this.debug(bit)
               await this.ser.port.setSignals({ brk: false, break: false });
             } else {
-              this.debug(bit)
+              //this.debug(bit)
               await this.ser.port.setSignals({ brk: true, break: true });
             }
             next = performance.now();
@@ -1091,7 +875,7 @@ Got D0 and ECU ID
           this.ser.stage++;
           this.debug(`done slow: ${performance.now() - start}\n`);
         }
-      }, 5000);
+      }, 4000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -1125,10 +909,11 @@ Got D0 and ECU ID
                 required = 0;
               }
               if (inbound.length >= required) {
+                this.debug(`inbound was: ${this.hex(inbound)}\n` );
                 rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
-                //this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
+                this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
               } else {
                 dataframe.push(...inbound);
                 inbound = [];
@@ -1136,16 +921,25 @@ Got D0 and ECU ID
               }
             }
             this.ser.dataframe = dataframe;
-            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
-              this.watchdog = setTimeout(() => {
-                this.watchdog = null;
+            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog2 == null) {
+              if ( this.watchdog2 )
+{
+  clearTimeout(this.watchdog2);
+}              this.watchdog2 = setTimeout(() => {
+                this.watchdog2 = null;
                 this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
                   this.baud5init = true;
                 }
+                this.waitReply=false;
+                
                 len_cmd = 0;
                 dataframe = [];
-/*
+                this.waitReply=false;
+
+                //if ( cmd === 0x80 || cmd === 0x7d )this.sendToEcu([cmd]);
+                
+               /*
                 if (!this.waitReply && this.queuedBytes.length) {
                   this.expectingBytes = this.queuedBytes.pop();
                   this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
@@ -1156,9 +950,9 @@ Got D0 and ECU ID
             }
             //this.waitReply = false;
             if (dataframe.length == len_cmd) {
-              if (this.watchdog) {
+              if (this.watchdog2) {
                 //this.debug("watchdog clear");
-                clearTimeout(this.watchdog);
+                clearTimeout(this.watchdog2);
                 this.watchdog = null;
               }
               this.waitReply = false; // Allow commands to be sent
@@ -1273,216 +1067,7 @@ Got D0 and ECU ID
       }
     },
 
-    async openSerialPort() {
-      this.ser.port = await navigator.serial.requestPort();
-
-      try {
-        await this.ser.port.open({
-          baudRate: 9600,
-          databits: 8,
-          bufferSize: 128,
-          parity: "none",
-          stopbits: 1,
-          flowControl: "none",
-        });
-      } catch (error) {
-        this.debug("port is already open - refresh page to close");
-        return;
-      }
-
-      this.ser.stage = 1;
-      this.retrys = 0;
-      let ecuAddress = 0x16;
-
-      let start = performance.now();
-      // pause/delay to clear the line - sends 0xFF
-      //await this.ser.port.setSignals({ break: false });
-      //await this.wait(2000);
-      //this.debug(`0xff: ${performance.now() - start}\n`);
-      this.ser.dataframe = [];
-      if (this.ser.stage == 0) {
-        this.debug(`Attempting ECU connection... 0x${ecuAddress.toString(16)}(slow init)`);
-        await this.slowInit19new(ecuAddress);
-        this.debug(`5 Baud: ${performance.now() - start}\n`);
-        this.ser.stage++;
-      } else {
-        this.sendToEcu([0xd1]);
-      }
-      this.waitReply = false;
-      while (this.ser.port?.readable) {
-        this.ser.reader = this.ser.port.readable.getReader();
-        /*
-        if (!this.waitReply && this.queuedBytes.length) {
-          this.expectingBytes = this.queuedBytes.pop();
-          this.debug(`sending queued bytes: ${this.expectingBytes.toString(16)}`);
-          this.sendBytes([this.expectingBytes]);
-        }
-        */
-        let cmd = 0;
-        let len_cmd = 0;
-        let dataframe: ArrayBuffer[] = [];
-        let going = true;
-        let watchdog = null;
-        try {
-          while (going) {
-            const { value, done } = await this.ser.reader.read();
-            if (done) {
-              console.log("done");
-              going = false;
-              break;
-            }
-            let inbound = Array.from(value);
-            let rest = [];
-            if (len_cmd == 0) {
-              cmd = inbound[0];
-              dataframe = inbound;
-              len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
-            } else {
-              let required = len_cmd - dataframe.length;
-              if (required < 0) {
-                this.debug("cmd length error");
-                len_cmd = 0;
-                required = 0;
-                this.sendBytes([0xf0]);
-              }
-              if (inbound.length >= required) {
-                rest = inbound.slice(required);
-                inbound = inbound.slice(0, required);
-                dataframe.push(...inbound);
-                this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
-              } else {
-                dataframe.push(...inbound);
-                inbound = [];
-                this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`);
-              }
-            }
-            this.ser.dataframe = dataframe;
-
-            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
-              this.watchdog = setTimeout(() => {
-                this.watchdog = null;
-                this.debug(`watchdog timeout ${dataframe.length} ${len_cmd}`);
-                len_cmd = 0;
-                dataframe = [];
-              }, 100);
-            }
-            //this.waitReply = false;
-            if (dataframe.length == len_cmd) {
-              if (this.watchdog) {
-                this.debug("watchdog clear");
-                clearTimeout(this.watchdog);
-                this.watchdog = null;
-              }
-              this.waitReply = false; // Allow commands to be sent
-              let data = this.hex(dataframe);
-              console.log(`process ${cmd}`);
-              switch (cmd) {
-                case 0x00:
-                  len_cmd = 0;
-                  cmd = 0x00;
-                  dataframe = [];
-                  this.debug(`00: ${performance.now() - start}\n`);
-                  this.ser.stage++;
-                  break;
-                case 0x55:
-                  //0x55, 0x76, 0x83
-                  this.debug(`55: ${performance.now() - start}\n`);
-                  await this.wait(50);
-                  // XOR 0x83 -> 0x&c
-                  this.sendBytes([0x7c]);
-                  len_cmd = 0;
-                  cmd = 0x00;
-                  dataframe = [];
-                  this.ser.stage++;
-                  break;
-
-                case 0x7c:
-                  this.debug(`7c->ca: ${performance.now() - start}\n`);
-                  this.ser.stage++;
-                  this.sendBytes([0xca]);
-                  break;
-                case 0xca:
-                  this.debug(`ca->75: ${performance.now() - start}\n`);
-                  this.sendBytes([0x75]);
-                  break;
-                case 0x75:
-                  this.debug(`75->f4: ${performance.now() - start}\n`);
-                  this.sendBytes([0xf4]);
-                  break;
-                case 0xf4:
-                  this.sendBytes([0x80]);
-                  break;
-                case 0x7d:
-                  if (data.length > 4) {
-                    if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
-                    this.parse7D(this.hexToBytes(data.substring(2)));
-
-                    this.Dataframe.Time = this.Time();
-                    this.Dataframe.Dataframe7d = data.substring(2);
-                  } else {
-                    console.log(`7d: short! ${data.length}`);
-                    if (data.length == 1) {
-                      this.debug("Lost connection...");
-                      len_cmd = 0;
-                      cmd = 0x00;
-                    }
-                  }
-                  break;
-                case 0x80:
-                  if (data.length > 4) {
-                    if (this.record.timer) this.sendToEcu([0x7d]); // Trigger next dataframe
-                    this.parse80(this.hexToBytes(data.substring(2)));
-                    this.Dataframe.Dataframe80 = data.substring(2);
-                    this.log.MemsData.push({
-                      Time: this.Dataframe.Time,
-                      Dataframe80: this.Dataframe.Dataframe80,
-                      Dataframe7d: this.Dataframe.Dataframe7d,
-                    });
-                  } else {
-                    console.log(`80: short! ${data.length}`);
-                    if (data.length == 1) {
-                      this.debug("Lost connection...");
-                      len_cmd = 0;
-                      cmd = 0x00;
-                    }
-                  }
-                  break;
-                case 0xd0:
-                  this.parseD0(data.substring(2));
-                  break;
-                case 0xd1:
-                  this.parseD1(data.substring(2));
-                  break;
-                default:
-                  break;
-              }
-              len_cmd = 0;
-              dataframe = [];
-              if (rest.length) {
-                dataframe.push(...rest);
-                len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              }
-              if (dataframe.length >= 40) {
-                this.debug("dataframe too long,");
-                len_cmd = 0;
-                dataframe = [];
-              }
-            } else {
-              console.log(`len error dataframe.length: ${dataframe.length} len_cmd:${len_cmd}`);
-            }
-          }
-        } catch (error) {
-          this.debug(`error: ${error.message}`);
-          this.debug(error);
-        } finally {
-          this.ser.reader.releaseLock();
-          this.ser.reader = null;
-          this.debug("released lock");
-          await this.wait(1000);
-        }
-      }
-    },
+  
     async sleepUntil(timestampMs) {
       let now = new Date().getTime();
       let sleepFor = timestampMs - now;
@@ -1669,11 +1254,7 @@ Got D0 and ECU ID
   <label>Stage:</label><input v-model="ser.stage" type="text" class="form-control" placeholder="stage" />
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortWork">Open Serial Port Work</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPortWorkingOld">Open Serial Port Work Old</button>
-
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="slowInit19(0x16, true)">slowInit19</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
     <i class="fas fa-download"></i>
@@ -1716,7 +1297,6 @@ Got D0 and ECU ID
   {{ hex(ser.dataframe) }} {{ ser.dataframe.length }} <br />Stage: {{ ser.stage }}
   <hr />
   <div>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d, 0x80])">Data 7D/80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
 
