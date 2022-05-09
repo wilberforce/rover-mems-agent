@@ -726,7 +726,7 @@ export default {
             return dataframe[2] + 2; // command is 34 0x21=>33 + 1
           } // Need to handle case of single byte
 
-          return 34;
+          return 35;
         case 0xd0:
           return 6;
         case 0xd1:
@@ -909,7 +909,7 @@ Got D0 and ECU ID
                 len_cmd = 0;
                 required = 0;
               }
-              if (inbound.length >= required) {
+              if (inbound.length > required) {
                 this.debug(`inbound was: ${this.hex(inbound)}\n`);
                 rest = inbound.slice(required);
                 inbound = inbound.slice(0, required);
@@ -962,7 +962,7 @@ Got D0 and ECU ID
 
                 if (dataframe.length == len_cmd) {
                   this.processCmd(cmd, data);
-                  
+                  dataframe = [];
                   len_cmd = 0;
                 }
               }
@@ -988,9 +988,6 @@ Got D0 and ECU ID
       switch (cmd) {
         case 0x00:
           //this.debug(`0x00: ${performance.now() - start}\n`);
-          len_cmd = 0;
-          cmd = 0x00;
-          dataframe = [];
           break;
         case 0x55:
           this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
@@ -1000,10 +997,7 @@ Got D0 and ECU ID
           this.debug("engage");
           this.sendBytes([0x7c]);
           //this.ser.pause = this.ser.pause + 5;
-          len_cmd = 0;
-          cmd = 0x00;
-          dataframe = [];
-          break;
+            break;
         case 0x7c:
           this.debug("got 7c -> ca");
           clearInterval(this.ser.connectTimer);
@@ -1032,11 +1026,6 @@ Got D0 and ECU ID
             this.Dataframe.Dataframe7d = data.substring(2);
           } else {
             console.log(`7d: short! ${data.length}`);
-            if (data.length == 1) {
-              this.debug("Lost connection...");
-              len_cmd = 0;
-              cmd = 0x00;
-            }
           }
           break;
         case 0x80:
@@ -1053,8 +1042,6 @@ Got D0 and ECU ID
             console.log(`80: short! ${data.length}`);
             if (data.length == 1) {
               this.debug("Lost connection...");
-              len_cmd = 0;
-              cmd = 0x00;
             }
           }
           break;
@@ -1176,6 +1163,7 @@ Got D0 and ECU ID
       <div class="card-body">
         <h6 class="card-title">RPM</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
+        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.EngineRPM">
         <!-- Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
        Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
       {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
@@ -1202,6 +1190,8 @@ Got D0 and ECU ID
       <div class="card-body">
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
+        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.LambdaVoltage">
+        
         <!--
         Nm: {{ Nm }} <br />
         {{ gForce }}g<br />
@@ -1293,9 +1283,6 @@ Got D0 and ECU ID
   <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
     <i class="fas fa-play"></i>
   </button>
-
-  Wait: {{ waitReply }} {{ JSON.stringify(queuedBytes) }}<br />
-  Stage: {{ ser.stage }} dataframe: ({{ ser.dataframe.length }}) {{ hex(ser.dataframe) }} <br />
   <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
@@ -1420,5 +1407,9 @@ Got D0 and ECU ID
 <style lang="scss">
 .card-columns {
   column-count: 4;
+}
+
+.custom-range::-webkit-slider-thumb {
+width: 2px;
 }
 </style>
