@@ -997,11 +997,7 @@ Got D0 and ECU ID
           //this.debug(`0x00: ${performance.now() - start}\n`);
           break;
         case 0x55:
-          this.debug(`0x55 -> 7c: ${performance.now() - start}\n`);
-          this.debug(`pause ${this.ser.pause}`);
-          //await this.wait(this.ser.pause);
-          //0x55, 0x76, 0x83
-          this.debug("engage");
+          this.debug(`0x55 -> 7c: \n`);
           this.sendBytes([0x7c]);
           //this.ser.pause = this.ser.pause + 5;
             break;
@@ -1337,16 +1333,20 @@ Got D0 and ECU ID
     <p></p>
 
     <div class="btn-group mr-2" role="group">
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x0d, 0x01])">Off</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x0d])">Off</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"><label class="mb-0">Radiator Fan</label></span>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x1d, 0x00])">On</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x1d])">On</button>
+
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x01])">Off</button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"><label class="mb-0">Radiator Fuel pump</label></span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x11, 0x00])">On</button>
     </div>
 
     <div class="btn-group mr-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x92])">-</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
-          >Idle Speed Δ <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSpeedOffset }}</span></label
+          >Idle Speed Δ <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSpeedOffset }} / {{ Dataframe.IdleSetPoint }} </span></label
         ></span
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x91])">+</button>
@@ -1370,16 +1370,6 @@ Got D0 and ECU ID
         ></span
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b])">+</button>
-    </div>
-
-    <div class="btn-group mr-2" role="group">
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x92])">-</button>
-      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
-        ><label class="mb-0"
-          >Idle Speed <span class="ml-1 badge badge-dark"> SetPoint: {{ Dataframe.IdleSetPoint }} </span></label
-        ></span
-      >
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x91])">+</button>
     </div>
 
     <p></p>
