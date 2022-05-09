@@ -59,10 +59,11 @@ export default {
         port: null,
         dataframe: [] as number[],
         buffer: "" as string,
-        stage: 0,
+        stage: 1,
         retries: 0,
         pause: 0,
         baud5init: false,
+        
       },
       ECUID: "",
       ECUSerial: "",
@@ -751,16 +752,17 @@ export default {
         this.debug("port is already open - refresh page to close");
         return;
       }
-      this.ser.stage = 1;
       let ecuAddress = 0x16;
       this.ser.retries = 10;
 
       let start = 0;
 
+      this.ser.stage=4;
       this.sendBytes([0xca]);
 
       this.ser.connectTimer = setInterval(async () => {
-        if (!this.baud5init) return;
+        //if (!this.baud5init) return;
+        if (this.ser.stage!=2) return;
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
 
@@ -798,9 +800,9 @@ export default {
 
         await this.waitUntilPerf(before + 10 * pause);
         await this.wait(pause);
-        this.ser.stage++;
+        this.ser.stage=2;
         this.debug(`done slow: ${performance.now() - start}\n`);
-      }, 5000);
+      },3000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -853,6 +855,7 @@ export default {
                 this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
                   this.baud5init = true;
+                  this.ser.stage=2;
                 }
                 this.waitReply = false;
 
@@ -910,6 +913,7 @@ export default {
           break;
         case 0x55:
           this.debug(`0x55 -> 7c: \n`);
+          this.ser.stage=3;
           this.sendBytes([0x7c]);
           break;
         case 0x7c:
@@ -918,9 +922,8 @@ export default {
           this.ser.connectTimer = null;
           this.sendBytes([0xca]);
           break;
-
-          break;
         case 0xca:
+          this.ser.stage=4;
           this.debug("got ca -> 75");
           this.sendBytes([0x75]);
           break;
@@ -929,6 +932,7 @@ export default {
           this.sendBytes([0xf4]);
           break;
         case 0xf4:
+          this.ser.stage=5;
           this.debug("got f4 -> d1");
           this.sendBytes([0xd1]);
           break;
@@ -971,19 +975,7 @@ export default {
           break;
       }
     },
-
-    async sleepUntil(timestampMs) {
-      let now = new Date().getTime();
-      let sleepFor = timestampMs - now;
-      await new Promise((resolve) => setTimeout(resolve, sleepFor));
-    },
-    async waitUntil(timestampMs) {
-      let now = new Date().getTime();
-      let sleepFor = timestampMs - now;
-      // if (ms < 4) { debug("asked to sleep for "+ms+" but minimum will be 4ms+"); }
-      await new Promise((resolve) => setTimeout(resolve, sleepFor));
-    }
-  },
+  }
 };
 </script>
 
@@ -992,7 +984,7 @@ export default {
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-sm">
         <img style="height: 3rem" class="mr-2" src="./assets/lotus-badge.png" />
-        <a class="navbar-brand" href="/">MEMS 1.9 Diagnostic ⚙️ </a>
+        <a class="navbar-brand" href="/">MEMS 1.9 ⚙️ </a>
         <div class="navbar-text">
           <small>{{ appVersion }}</small>
         </div>
@@ -1011,6 +1003,55 @@ export default {
       </div>
     </nav>
   </div>
+
+
+{{ser.stage}}
+<div class="container">
+<div class="steps">
+    <progress id="progress" :value="(ser.stage-1)*25" max="100"></progress>
+    <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage===1?'active':''">
+            1
+        </button>
+        <div class="step-title">
+            Start
+        </div>
+    </div>
+    <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage===2?'active':''">
+            2
+        </button>
+        <div class="step-title">
+            Slow Init
+        </div>
+    </div>
+    <div class="step-item">
+        <button class="step-button text-center text-white"  :class="ser.stage===3?'active':''">
+            3
+        </button>
+        <div class="step-title">
+            Wake up
+        </div>
+    </div>
+    <div class="step-item">
+        <button class="step-button text-center text-white"  :class="ser.stage===4?'active':''">
+            4
+        </button>
+        <div class="step-title">
+            Initialise
+        </div>
+    </div>
+    <div class="step-item">
+        <button class="step-button text-center text-white"  :class="ser.stage===5?'active':''">
+            5
+        </button>
+        <div class="step-title">
+            Done
+        </div>
+    </div>        
+</div>
+</div>
+
 
   <div class="card-group text-center">
     <div class="card" @keyup.enter="simulatePause()">
@@ -1274,4 +1315,44 @@ export default {
 .custom-range::-webkit-slider-thumb {
   width: 2px;
 }
+
+#progress {
+    -webkit-appearance: none;
+    position: absolute;
+    width: 95%;
+    z-index: 5;
+    height: 10px;
+    margin-left: 18px;
+    margin-bottom: 18px;
+}
+
+.steps {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.step-button {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--gray);
+    transition: .4s;
+}
+
+.step-button[aria-expanded="true"], .step-button.active {
+    width: 60px;
+    height: 60px;
+    background-color: var(--blue);
+    color: #fff;
+}
+
+.step-item {
+    z-index: 10;
+    text-align: center;
+}
+
 </style>
