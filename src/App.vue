@@ -21,8 +21,6 @@ export default {
 
   data() {
     return {
-      ecuAddress: "1111111111001101000", // FF 16 FF
-      ecuAddress2: "1010101011001101000", // D5 16 FF
       appVersion: __APP_VERSION__,
       waitReply: false,
       queuedBytes: [],
@@ -318,7 +316,6 @@ export default {
               this.debug("False downchange");
             }
             this.rpmD2.min.push(rpmD2);
-            // = Math.min(rpmD2, this.rpmD2.min);
           }
         }
         this.rpmD1 = rpmD1;
@@ -362,7 +359,6 @@ export default {
       this.replay.timer = setInterval(() => this.simulate(), this.replay.interval);
       this.simulate();
       this.ECUID = imported_data.Name;
-      // Slider for speed - realtime option
     },
 
     simulateStep(step = 10) {
@@ -582,7 +578,6 @@ export default {
         this.debug(`expected len 28 (${len}) for 0x80`);
         return;
       } else {
-        //"80 1c 00 00 6f ff 4f ff 64 78 1b00000100002037877b055f05380ca5000000"
         let offset = 1;
         let v80 = {
           EngineRPM: v.getInt16(0x01 + offset),
@@ -617,7 +612,7 @@ export default {
       let bytes = new ArrayBuffer(hex.length / 2);
       var view = new DataView(bytes);
       for (let c = 0; c < hex.length; c += 2) view.setUint8(c / 2, parseInt(hex.substr(c, 2), 16));
-      return bytes; //new Uint8Array(bytes);
+      return bytes;
     },
     async sleep(ms) {
       await new Promise((resolve) => setTimeout(resolve, ms));
@@ -634,7 +629,6 @@ export default {
           return;
         }
       }
-      //this.debug({ms:ms,actual:performance.now() - start});
     },
 
     async waitUntilPerf(timestampMs) {
@@ -742,31 +736,6 @@ export default {
       }
     },
 
-    /*
-    Attempting ECUU connection... (address: 22) (slow init)
-App.vue:659 0xff: 2021.2000000178814
-
-App.vue:659 done slow: 3849.5999999940395
-
-App.vue:659 000000 -> start 000000
-App.vue:659 0x00: 3880.2000000178814
-
-App.vue:659 557683 -> start 557683
-App.vue:659 0x55 -> 7c: 4187.9000000059605
-
-App.vue:659 7c -> start 7c
-App.vue:659 watchdog clear
-App.vue:659 got 7c -> ca
-App.vue:710 Cmd: ca
-App.vue:659 caca -> start caca
-
-Got CA
-Got 75
-Got F4 00
-Got D0 and ECU ID
-
-*/
-
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
       try {
@@ -798,9 +767,7 @@ Got D0 and ECU ID
         await this.ser.port.setSignals({ break: false });
         let pause = 200;
         start = performance.now();
-        await this.wait(2000);
-        //this.debug(`0xff: ${performance.now() - start}\n`);
-
+        await this.wait(200);
         let before = performance.now();
         let last = performance.now();
 
@@ -858,7 +825,6 @@ Got D0 and ECU ID
               cmd = inbound[0];
               dataframe = inbound;
               len_cmd = this.CmdLength(cmd, dataframe, len_cmd);
-              //this.debug(`${this.hex(inbound)} -> start ${this.hex(dataframe)}`);
             } else {
               let required = len_cmd - dataframe.length;
               if (required < 0) {
@@ -875,7 +841,6 @@ Got D0 and ECU ID
               } else {
                 dataframe.push(...inbound);
                 inbound = [];
-                //this.debug(`${this.hex(inbound)} -> added ${this.hex(dataframe)}`);
               }
             }
             this.ser.dataframe = dataframe;
@@ -896,10 +861,8 @@ Got D0 and ECU ID
                 this.waitReply = false;
               }, 500);
             }
-            //this.waitReply = false;
             if (dataframe.length == len_cmd) {
               if (this.watchdog2) {
-                //this.debug("watchdog clear");
                 clearTimeout(this.watchdog2);
                 this.watchdog = null;
               }
@@ -943,12 +906,11 @@ Got D0 and ECU ID
     processCmd(cmd, data) {
       switch (cmd) {
         case 0x00:
-          //this.debug(`0x00: ${performance.now() - start}\n`);
+          // slow init
           break;
         case 0x55:
           this.debug(`0x55 -> 7c: \n`);
           this.sendBytes([0x7c]);
-          //this.ser.pause = this.ser.pause + 5;
           break;
         case 0x7c:
           this.debug("got 7c -> ca");
@@ -1020,60 +982,7 @@ Got D0 and ECU ID
       let sleepFor = timestampMs - now;
       // if (ms < 4) { debug("asked to sleep for "+ms+" but minimum will be 4ms+"); }
       await new Promise((resolve) => setTimeout(resolve, sleepFor));
-    },
-    async slowInit19(ecuAddress) {
-      let before = new Date().getTime();
-
-      // pause/delay to clear the line
-      await this.ser.port.setSignals({ break: false });
-      this.debug("sleeping for 2 seconds to clear the line");
-      await this.wait(2000);
-      // start bit:
-      await this.ser.port.setSignals({ break: true });
-      await this.waitUntil(before + 200);
-      for (var i = 0; i < 8; i++) {
-        let bit = (ecuAddress >> i) & 1;
-        this.debug(i + " " + bit);
-        if (bit > 0) {
-          await this.ser.port.setSignals({ break: false });
-        } else {
-          await this.ser.port.setSignals({ break: true });
-        }
-        await this.waitUntil(before + 200 + (i + 1) * 200);
-      }
-
-      // stop bit:
-      await this.ser.port.setSignals({ break: false });
-      await this.waitUntil(before + 200 + 8 * 200);
-    },
-    async wakeUp5Baud(ecuAddress, sleepMs) {
-      // 5 baud/200ms per bit
-      // start bit low, stop bit high
-
-      // pause/delay to clear the line
-      await this.ser.port.setSignals({ break: false });
-      this.debug("sleeping for 2 seconds to clear the line");
-      await this.wait(2000);
-      this.debug("sending wakeup");
-      // start bit
-      await this.ser.port.setSignals({ brk: true, break: true });
-      await this.wait(sleepMs);
-      for (var i = 0; i < 8; i++) {
-        let bit = (ecuAddress >> i) & 1;
-        this.debug(bit);
-        if (bit > 0) {
-          await this.ser.port.setSignals({ break: false });
-        } else {
-          await this.ser.port.setSignals({ brk: true, break: true });
-        }
-        await this.wait(sleepMs);
-      }
-      // stop bit
-      await this.ser.port.setSignals({ break: false });
-      await this.wait(sleepMs);
-      // await this.wait(195);
-      this.debug("Done sending wakeup");
-    },
+    }
   },
 };
 </script>
