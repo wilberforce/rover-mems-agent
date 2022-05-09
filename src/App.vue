@@ -175,50 +175,50 @@ export default {
           IACPosition: 0,
         },
         Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
-        Dataframe7d: "7d210000000000000000000000000000000000000000000000000000000000000000",
+        Dataframe7d: "7d21000000000000000000000000000000000000000000000000000000000000000000",
       },
       parameters: [
         "EngineRPM",
         "CoolantTemp",
-        "AmbientTemp",
         "IntakeAirTemp",
         "FuelTemp",
         "ManifoldAbsolutePressure",
         "BatteryVoltage",
         "ThrottlePosition",
-        "IdleSwitch",
-        "DTC0",
-        "DTC1",
+        "ThrottleAngle",
+        "IdleSpeedDeviation",
         "IdleSetPoint",
         "IdleHot",
+        "IdleBasePosition",
         "IACPosition",
-        "IdleSpeedDeviation",
-        "IgnitionAdvanceOffset80",
+        "IdleSpeedOffset",
+        "IdleSwitch",
         "IgnitionAdvance",
+        "IgnitionAdvanceOffset7d",
+        "IgnitionAdvanceOffset80",
         "CoilTime",
-        "CrankshaftPositionSensor",
-        "IgnitionSwitch",
-        "ThrottleAngle",
-        "AirFuelRatio",
         "LambdaVoltage",
         "LambdaStatus",
         "ClosedLoop",
         "LongTermFuelTrim",
         "ShortTermFuelTrim",
         "FuelTrimCorrection",
-        "CarbonCanisterPurgeValve",
-        "IdleBasePosition",
-        "AirconSwitch",
-        "ParkNeutralSwitch",
+        "IgnitionSwitch",
+        "DTC0",
+        "DTC1",
         "DTC2",
         "DTC3",
         "DTC4",
         "DTC5",
-        "IdleSpeedOffset",
-        "IgnitionAdvanceOffset7d",
+        "AmbientTemp",
+        "AirconSwitch",
+        "AirFuelRatio",
+        "CarbonCanisterPurgeValve",
+        "CrankshaftPositionSensor",
         "JackCount",
         "LambdaDutycycle",
         "LambdaFrequency",
+        "ParkNeutralSwitch",
         "Uk7d03",
         "Uk7d10",
         "Uk7d14",
@@ -550,7 +550,6 @@ export default {
           ClosedLoop: v.getUint8(0x0a + offset),
           LongTermFuelTrim: v.getUint8(0x0b + offset),
           ShortTermFuelTrim: v.getUint8(0x0c + offset),
-          //FuelTrimCorrection: v.getInt8(0x+offset),
           CarbonCanisterPurgeValve: v.getUint8(0x0d + offset),
           DTC3: v.getUint8(0x0e + offset),
           IdleBasePosition: v.getUint8(0x0f + offset),
@@ -558,7 +557,6 @@ export default {
           DTC4: v.getUint8(0x11 + offset),
           IgnitionAdvanceOffset7d: v.getUint8(0x12 + offset) - 48,
           IdleSpeedOffset: v.getUint8(0x13 + offset),
-          //IdleSpeedOffset: v.getInt8(0x13 + offset),
           Uk7d14: v.getUint8(0x14 + offset),
           Uk7d15: v.getUint8(0x15 + offset),
           DTC5: v.getUint8(0x16 + offset),
@@ -792,63 +790,16 @@ Got D0 and ECU ID
 
       this.sendBytes([0xca]);
 
-      this.debug("pausing..");
       this.ser.connectTimer = setInterval(async () => {
         if (!this.baud5init) return;
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
 
-        if (0) {
-          let pause = 190;
-          start = performance.now();
-          this.debug(`before: ${performance.now() - start}\n`);
-          //await this.ser.port.setSignals({ break: false });
-          //await this.wait(pause *3);
-          //
-
-          //1011010000
-          //10100101
-
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 10);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);
-
-          await this.ser.port.setSignals({ break: false });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: false });
-          await this.sleep(pause * 2);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: false });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);
-          /*
-                    await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 2);
-          await this.ser.port.setSignals({ break: false });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);  
-          await this.ser.port.setSignals({ break: false });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);
-          await this.ser.port.setSignals({ break: false });
-          await this.sleep(pause * 2);
-          await this.ser.port.setSignals({ break: true });
-          await this.sleep(pause * 1);
-          */
-          this.debug(`after: ${performance.now() - start}\n`);
-        } else {
           await this.ser.port.setSignals({ break: false });
           let pause = 200;
           start = performance.now();
-          await this.wait(2000);
-          this.debug(`0xff: ${performance.now() - start}\n`);
+         await this.wait(2000);
+          //this.debug(`0xff: ${performance.now() - start}\n`);
 
           let before = performance.now();
           let last = performance.now();
@@ -882,8 +833,7 @@ Got D0 and ECU ID
           await this.wait(pause);
           this.ser.stage++;
           this.debug(`done slow: ${performance.now() - start}\n`);
-        }
-      }, 4000);
+          }, 5000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -1162,7 +1112,7 @@ Got D0 and ECU ID
 
         Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
        Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
-      {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
+    <!--  {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />-->
         MPH: {{ MPH }} KPH: {{ KPH }} <br />
         Δ {{ deltaDist }}m <br />
       </div>
@@ -1182,19 +1132,6 @@ Got D0 and ECU ID
         <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
         <input class="custom-range" type="range" min="-20" max="40" :value="Dataframe.IgnitionAdvance">        
         
-      </div>
-    </div>    
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Idle</h6>
-
-        <br />
-        IAC Position: <span class="ml-1 badge badge-dark">{{ Dataframe.IACPosition }}</span> <br />
-        SetPoint: <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSetPoint }}</span> <br />
-        Offset: <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSpeedOffset }}</span> <br />
-        IdleHot: <span class="ml-1 badge badge-dark">{{ Dataframe.IdleHot }}</span> <br />
-        Δ : <span class="ml-1 badge badge-dark">{{ Dataframe.IdleSpeedDeviation }}</span>
       </div>
     </div>
 
@@ -1236,7 +1173,7 @@ Got D0 and ECU ID
 
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">Battery Voltage</h6>
+        <h6 class="card-title">Battery Voltage</h6>pu,p
         <h3 class="card-text text-monospace">{{ Dataframe.BatteryVoltage }}</h3>
       </div>
     </div>
@@ -1254,10 +1191,16 @@ Got D0 and ECU ID
 />
 -->
   <p v-if="faults.length">
+
+    <span class="float-right">
+      wait: {{waitReply}} {{queuedBytes}}
+      </span>
     <label>Faults: </label>
     <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
       {{ fault }}
     </span>
+
+    
   </p>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
@@ -1338,8 +1281,8 @@ Got D0 and ECU ID
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x1d])">On</button>
 
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x01])">Off</button>
-      <span type="button" class="btn btn-sm btn-outline-secondary disabled"><label class="mb-0">Radiator Fuel pump</label></span>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x11, 0x00])">On</button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"><label class="mb-0">Fuel pump</label></span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x11])">On</button>
     </div>
 
     <div class="btn-group mr-2" role="group">
@@ -1371,8 +1314,6 @@ Got D0 and ECU ID
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b])">+</button>
     </div>
-
-    <p></p>
 
     <div class="btn-group mr-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x93])">-</button>
