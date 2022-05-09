@@ -2,7 +2,7 @@
 //import imported_data from "./data/run-demo.fcr.json";
 //import imported_data from "./data/run-1649820449532.fcr.json";
 //import imported_data from "./data/run-1649822529717.fcr.json";
-import imported_data from "./data/run-1651534154333.fcr.json";
+import imported_data from "./data/run-1652058533489.fcr.json";
 //import imported_data from "./data/run-1651531224249.fcr.json";  // Small start up
 
 //import imported_data from "./data/nofaults.fcr.json";
@@ -264,7 +264,7 @@ export default {
       if (this.Dataframe.DTC2 & 0x10) f.push("Fan 1 Control");
       if (this.Dataframe.DTC2 & 0x40) f.push("Fan 2 Control");
       if (this.Dataframe.DTC3 & 0x01) f.push("Primary Trigger Sync");
-      if (this.Dataframe.DTC3 & 0x04) f.push("DTC 0x4");
+      if (this.Dataframe.DTC3 & 0x04) f.push("DTC3 0x4");
 
       return f;
     },
@@ -364,6 +364,12 @@ export default {
       this.ECUID = imported_data.Name;
       // Slider for speed - realtime option
     },
+
+    simulateStep(step = 10) {
+      this.replay.step+= step;
+      this.simulate();
+    },
+
     async replaySerialStart(step = 0) {
       this.replay.port = await navigator.serial.requestPort();
 
@@ -525,8 +531,9 @@ export default {
     parse7D(data: ArrayBuffer) {
       var v = new DataView(data);
       let len = v.getUint8(1);
-      if (len != 33 || !(v.getUint8(0) == 0x7d && v.byteLength == 34)) {
+      if (len != 33 || !(v.getUint8(0) == 0x7d && v.byteLength >= 33)) {
         this.debug(`expected len 33 for 0x7d got ${len}`);
+        debugger;
         return;
       } else {
         let offset = 1;
@@ -1156,6 +1163,12 @@ Got D0 and ECU ID
       <div class="card-body">
         <h6 class="card-title">Time</h6>
         <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
+
+        Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
+       Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
+      {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
+        MPH: {{ MPH }} KPH: {{ KPH }} <br />
+        Δ {{ deltaDist }}m <br />
       </div>
     </div>
 
@@ -1164,14 +1177,17 @@ Got D0 and ECU ID
         <h6 class="card-title">RPM</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
         <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.EngineRPM">
-        <!-- Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
-       Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
-      {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
-        MPH: {{ MPH }} KPH: {{ KPH }} <br />
-        Δ {{ deltaDist }}m <br />
-         -->
+
+        <h6 class="card-title">Throttle Angle</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ThrottleAngle }}</h3>
+        <input class="custom-range" type="range" min="0" max="100" :value="Dataframe.ThrottleAngle">
+
+        <h6 class="card-title">Ignition Advance</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
+        <input class="custom-range" type="range" min="-20" max="40" :value="Dataframe.IgnitionAdvance">        
+        
       </div>
-    </div>
+    </div>    
 
     <div class="card">
       <div class="card-body">
@@ -1190,7 +1206,11 @@ Got D0 and ECU ID
       <div class="card-body">
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
-        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.LambdaVoltage">
+        <input class="custom-range" type="range" min="0" max="1200" :value="Dataframe.LambdaVoltage">
+
+       <h6 class="card-title">Manifold Absolute Pressure</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
+        <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure">
         
         <!--
         Nm: {{ Nm }} <br />
@@ -1272,13 +1292,25 @@ Got D0 and ECU ID
     Replay
   </button>
 
+  
+
   <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
     <i class="fas fa-stop"></i>
+  </button>
+
+<button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
+    <i class="fas fa-backward"></i>
   </button>
 
   <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
     <i class="fas fa-pause"></i>
   </button>
+
+  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(10)">
+    <i class="fas fa-forward"></i>
+  </button>
+
+
 
   <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
     <i class="fas fa-play"></i>
