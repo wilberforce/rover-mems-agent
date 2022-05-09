@@ -366,7 +366,7 @@ export default {
     },
 
     simulateStep(step = 10) {
-      this.replay.step+= step;
+      this.replay.step += step;
       this.simulate();
     },
 
@@ -795,45 +795,45 @@ Got D0 and ECU ID
         this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
         this.ser.retries--;
 
-          await this.ser.port.setSignals({ break: false });
-          let pause = 200;
-          start = performance.now();
-         await this.wait(2000);
-          //this.debug(`0xff: ${performance.now() - start}\n`);
+        await this.ser.port.setSignals({ break: false });
+        let pause = 200;
+        start = performance.now();
+        await this.wait(2000);
+        //this.debug(`0xff: ${performance.now() - start}\n`);
 
-          let before = performance.now();
-          let last = performance.now();
+        let before = performance.now();
+        let last = performance.now();
 
-          await this.ser.port.setSignals({ break: true });
-          await this.waitUntilPerf(before + pause);
+        await this.ser.port.setSignals({ break: true });
+        await this.waitUntilPerf(before + pause);
 
-          let split = 0;
-          let next = 0;
-          await this.wait(pause);
+        let split = 0;
+        let next = 0;
+        await this.wait(pause);
 
-          for (var i = 0; i < 8; i++) {
-            let bit = (ecuAddress >> i) & 1;
-            if (bit > 0) {
-              //this.debug(bit)
-              await this.ser.port.setSignals({ brk: false, break: false });
-            } else {
-              //this.debug(bit)
-              await this.ser.port.setSignals({ brk: true, break: true });
-            }
-            next = performance.now();
-            split = next - last;
-            last = next;
-            //this.debug(`doing slow: ${i} ${bit} ${split} ${performance.now() - start}\n`);
-            await this.waitUntilPerf(before + pause + (i + 1) * pause);
+        for (var i = 0; i < 8; i++) {
+          let bit = (ecuAddress >> i) & 1;
+          if (bit > 0) {
+            //this.debug(bit)
+            await this.ser.port.setSignals({ brk: false, break: false });
+          } else {
+            //this.debug(bit)
+            await this.ser.port.setSignals({ brk: true, break: true });
           }
-          // stop bit:
-          await this.ser.port.setSignals({ brk: false, break: false });
+          next = performance.now();
+          split = next - last;
+          last = next;
+          //this.debug(`doing slow: ${i} ${bit} ${split} ${performance.now() - start}\n`);
+          await this.waitUntilPerf(before + pause + (i + 1) * pause);
+        }
+        // stop bit:
+        await this.ser.port.setSignals({ brk: false, break: false });
 
-          await this.waitUntilPerf(before + 10 * pause);
-          await this.wait(pause);
-          this.ser.stage++;
-          this.debug(`done slow: ${performance.now() - start}\n`);
-          }, 5000);
+        await this.waitUntilPerf(before + 10 * pause);
+        await this.wait(pause);
+        this.ser.stage++;
+        this.debug(`done slow: ${performance.now() - start}\n`);
+      }, 5000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -872,7 +872,6 @@ Got D0 and ECU ID
                 inbound = inbound.slice(0, required);
                 dataframe.push(...inbound);
                 this.debug(`${this.hex(inbound)} -> extra ${this.hex(rest)} ${this.hex(dataframe)}`);
-
               } else {
                 dataframe.push(...inbound);
                 inbound = [];
@@ -950,7 +949,7 @@ Got D0 and ECU ID
           this.debug(`0x55 -> 7c: \n`);
           this.sendBytes([0x7c]);
           //this.ser.pause = this.ser.pause + 5;
-            break;
+          break;
         case 0x7c:
           this.debug("got 7c -> ca");
           clearInterval(this.ser.connectTimer);
@@ -1111,8 +1110,8 @@ Got D0 and ECU ID
         <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
 
         Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
-       Δ: {{ rpmD1 }} {{ rpmD2.val }}<br>
-    <!--  {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />-->
+        Δ: {{ rpmD1 }} {{ rpmD2.val }}<br />
+        <!--  {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />-->
         MPH: {{ MPH }} KPH: {{ KPH }} <br />
         Δ {{ deltaDist }}m <br />
       </div>
@@ -1122,16 +1121,15 @@ Got D0 and ECU ID
       <div class="card-body">
         <h6 class="card-title">RPM</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
-        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.EngineRPM">
+        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.EngineRPM" />
 
         <h6 class="card-title">Throttle Angle</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.ThrottleAngle }}</h3>
-        <input class="custom-range" type="range" min="0" max="100" :value="Dataframe.ThrottleAngle">
+        <input class="custom-range" type="range" min="0" max="100" :value="Dataframe.ThrottleAngle" />
 
         <h6 class="card-title">Ignition Advance</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
-        <input class="custom-range" type="range" min="-20" max="40" :value="Dataframe.IgnitionAdvance">        
-        
+        <input class="custom-range" type="range" min="-20" max="40" :value="Dataframe.IgnitionAdvance" />
       </div>
     </div>
 
@@ -1139,12 +1137,12 @@ Got D0 and ECU ID
       <div class="card-body">
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
-        <input class="custom-range" type="range" min="0" max="1200" :value="Dataframe.LambdaVoltage">
+        <input class="custom-range" type="range" min="0" max="1200" :value="Dataframe.LambdaVoltage" />
 
-       <h6 class="card-title">Manifold Absolute Pressure</h6>
+        <h6 class="card-title">Manifold Absolute Pressure</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
-        <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure">
-        
+        <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
+
         <!--
         Nm: {{ Nm }} <br />
         {{ gForce }}g<br />
@@ -1173,7 +1171,8 @@ Got D0 and ECU ID
 
     <div class="card">
       <div class="card-body">
-        <h6 class="card-title">Battery Voltage</h6>pu,p
+        <h6 class="card-title">Battery Voltage</h6>
+        pu,p
         <h3 class="card-text text-monospace">{{ Dataframe.BatteryVoltage }}</h3>
       </div>
     </div>
@@ -1191,16 +1190,11 @@ Got D0 and ECU ID
 />
 -->
   <p v-if="faults.length">
-
-    <span class="float-right">
-      wait: {{waitReply}} {{queuedBytes}}
-      </span>
+    <span class="float-right"> wait: {{ waitReply }} {{ queuedBytes }} </span>
     <label>Faults: </label>
     <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
       {{ fault }}
     </span>
-
-    
   </p>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
@@ -1231,13 +1225,11 @@ Got D0 and ECU ID
     Replay
   </button>
 
-  
-
   <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
     <i class="fas fa-stop"></i>
   </button>
 
-<button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
+  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
     <i class="fas fa-backward"></i>
   </button>
 
@@ -1248,8 +1240,6 @@ Got D0 and ECU ID
   <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(10)">
     <i class="fas fa-forward"></i>
   </button>
-
-
 
   <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
     <i class="fas fa-play"></i>
@@ -1373,6 +1363,6 @@ Got D0 and ECU ID
 }
 
 .custom-range::-webkit-slider-thumb {
-width: 2px;
+  width: 2px;
 }
 </style>
