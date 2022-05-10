@@ -2,7 +2,9 @@
 //import imported_data from "./data/run-demo.fcr.json";
 //import imported_data from "./data/run-1649820449532.fcr.json";
 //import imported_data from "./data/run-1649822529717.fcr.json";
-import imported_data from "./data/run-1652058533489.fcr.json";
+//import imported_data from "./data/run-1652058533489.fcr.json";
+
+import imported_data from "./data/run-1652139960583.fcr.json"
 //import imported_data from "./data/run-1651531224249.fcr.json";  // Small start up
 
 //import imported_data from "./data/nofaults.fcr.json";
@@ -59,7 +61,7 @@ export default {
         port: null,
         dataframe: [] as number[],
         buffer: "" as string,
-        stage: 1,
+        stage: 0,
         retries: 0,
         pause: 0,
         baud5init: false,
@@ -706,6 +708,7 @@ export default {
       this.ser.reader = null;
       this.ser.port = null;
       this.ser.mode = 0;
+      this.ser.stage = 0;
     },
 
     CmdLength(cmd, dataframe, len_cmd) {
@@ -773,15 +776,18 @@ export default {
         let before = performance.now();
         let last = performance.now();
 
-        await this.ser.port.setSignals({ break: true });
+       await this.ser.port.setSignals({ break: true });
         await this.waitUntilPerf(before + pause);
+//ecuAddress=ecuAddress << 1 | 1;
 
+this.debug(`0 1  ${ecuAddress.toString(2).padStart(8,0)} 1`)
         let split = 0;
         let next = 0;
         await this.wait(pause);
 
         for (var i = 0; i < 8; i++) {
           let bit = (ecuAddress >> i) & 1;
+          /*
           if (bit > 0) {
             //this.debug(bit)
             await this.ser.port.setSignals({ brk: false, break: false });
@@ -789,17 +795,15 @@ export default {
             //this.debug(bit)
             await this.ser.port.setSignals({ brk: true, break: true });
           }
-          next = performance.now();
-          split = next - last;
-          last = next;
-          //this.debug(`doing slow: ${i} ${bit} ${split} ${performance.now() - start}\n`);
-          await this.waitUntilPerf(before + pause + (i + 1) * pause);
+          */
+await this.ser.port.setSignals({ break: !bit });
+await this.waitUntilPerf(before + pause + (i + 1) * pause);
         }
         // stop bit:
         await this.ser.port.setSignals({ brk: false, break: false });
 
         await this.waitUntilPerf(before + 10 * pause);
-        await this.wait(pause);
+//        await this.wait(pause);
         this.ser.stage=2;
         this.debug(`done slow: ${performance.now() - start}\n`);
       },3000);
@@ -928,6 +932,7 @@ export default {
           this.sendBytes([0x75]);
           break;
         case 0x75:
+          this.ser.stage=5;
           this.debug("got 75 -> f4");
           this.sendBytes([0xf4]);
           break;
@@ -1004,8 +1009,55 @@ export default {
     </nav>
   </div>
 
+<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Connect</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
 
-{{ser.stage}}
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
+    <i class="fas fa-download"></i>
+    Download
+  </button>
+
+  <button v-if="!record.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="recordStart()">
+    <i class="fas fa-circle" style="color: red"></i>
+    Record
+  </button>
+
+  <button v-if="record.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="recordStop()">
+    <i class="fas fa-stop" style="color: black"></i>
+    Stop
+  </button>
+
+  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="replaySerialStart()">
+    <i class="fas fa-refresh"></i>
+    Replay Serial
+  </button>
+
+  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStart()">
+    <i class="fas fa-refresh"></i>
+    Replay
+  </button>
+
+  <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
+    <i class="fas fa-stop"></i>
+  </button>
+
+  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
+    <i class="fas fa-backward"></i>
+  </button>
+
+  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
+    <i class="fas fa-pause"></i>
+  </button>
+
+  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(10)">
+    <i class="fas fa-forward"></i>
+  </button>
+
+  <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
+    <i class="fas fa-play"></i>
+  </button>
+  <hr />
+
 <div class="container">
 <div class="steps">
     <progress id="progress" :value="(ser.stage-1)*25" max="100"></progress>
@@ -1093,6 +1145,11 @@ export default {
         <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
         <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
 
+
+        <h6 class="card-title">Short Term Fuel Trim</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
+        <input class="custom-range" type="range" min="0" max="255" :value="Dataframe.ShortTermFuelTrim" />
+
         <!--
         Nm: {{ Nm }} <br />
         {{ gForce }}g<br />
@@ -1147,54 +1204,6 @@ export default {
     </span>
   </p>
 
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Open Serial Port</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
-
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
-    <i class="fas fa-download"></i>
-    Download
-  </button>
-
-  <button v-if="!record.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="recordStart()">
-    <i class="fas fa-circle" style="color: red"></i>
-    Record
-  </button>
-
-  <button v-if="record.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="recordStop()">
-    <i class="fas fa-stop" style="color: black"></i>
-    Stop
-  </button>
-
-  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="replaySerialStart()">
-    <i class="fas fa-refresh"></i>
-    Replay Serial
-  </button>
-
-  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStart()">
-    <i class="fas fa-refresh"></i>
-    Replay
-  </button>
-
-  <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
-    <i class="fas fa-stop"></i>
-  </button>
-
-  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
-    <i class="fas fa-backward"></i>
-  </button>
-
-  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
-    <i class="fas fa-pause"></i>
-  </button>
-
-  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(10)">
-    <i class="fas fa-forward"></i>
-  </button>
-
-  <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
-    <i class="fas fa-play"></i>
-  </button>
-  <hr />
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
@@ -1245,7 +1254,7 @@ export default {
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x89])">+</button>
     </div>
 
-    <div class="btn-group mr-2" role="group">
+    <div class="btn-group  mr-2 mr-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7a])">-</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1255,7 +1264,7 @@ export default {
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b])">+</button>
     </div>
 
-    <div class="btn-group mr-2" role="group">
+    <div class="btn-group mt-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x93])">-</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1263,7 +1272,21 @@ export default {
         ></span
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x94])">+</button>
+    
+     </div>
+
+    <div class="btn-group mt-2" role="group">
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xfe])">-</button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >IAC Position Δ <span class="ml-1 badge badge-dark">{{ Dataframe.IACPosition }}</span></label
+        ></span
+      >
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xfd])">+</button>
+    
     </div>
+
+    
   </div>
 
   <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
