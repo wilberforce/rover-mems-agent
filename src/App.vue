@@ -65,6 +65,7 @@ export default {
         stage: 0,
         retries: 0,
         pause: 0,
+        replys:[] as string[]
       },
       ECUID: "",
       ECUSerial: "",
@@ -137,10 +138,7 @@ export default {
         Uk7d1d: 0,
         Uk7d1e: 0,
         JackCount: 0,
-        CoolantTempSensorFault: false,
-        IntakeAirTempSensorFault: false,
-        FuelPumpCircuitFault: false,
-        ThrottlePotCircuitFault: false,
+        Uk7d20: 0,
         Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
         Dataframe7d: "7d21000000000000000000000000000000000000000000000000000000000000000000",
       },
@@ -215,7 +213,7 @@ export default {
     },
 
     LambdaVoltageDamped() {
-      let sum = this.lambdaDamped.reduce((a,b ) => ( a + b ))
+      let sum = this.lambdaDamped.reduce((a, b) => a + b);
       return (sum / this.lambdaDamped.length).toFixed(0);
     },
 
@@ -272,7 +270,7 @@ export default {
   watch: {
     "Dataframe.Time"(before, after) {
       this.lambdaDamped.unshift(this.Dataframe.LambdaVoltage);
-        this.lambdaDamped = this.lambdaDamped.slice(0,5);
+      this.lambdaDamped = this.lambdaDamped.slice(0, 5);
       if (before && after) {
         let delta = this.hhmmss2secs(before) - this.hhmmss2secs(after);
         this.stopwatch = Number(this.stopwatch + delta);
@@ -308,8 +306,7 @@ export default {
         this.history.push({
           Time: this.stopwatchFormat,
           EngineRPM: this.Dataframe.EngineRPM,
-          LambdaVoltage: this.Dataframe.LambdaVoltage,
-          rpmD2: rpmD2,
+          LambdaVoltage: this.LambdaVoltageDamped,
           gear: this.gear,
         });
       }
@@ -374,13 +371,13 @@ export default {
               this.replayWrite("557583", false);
               break;
             case 0xca:
-              this.replayWrite("CAE9", false);
+              this.replayWrite("CACA", false);
               break;
             case 75:
-              this.replayWrite("75", false);
+              this.replayWrite("7575", false);
               break;
             case 0xf4:
-              this.replayWrite("0xF4", false);
+              this.replayWrite("F4F400", false);
               break;
             case 0x7c:
               this.replayWrite("7ce9", false);
@@ -550,7 +547,7 @@ export default {
           JackCount: v.getUint8(0x1f + offset),
           Uk7d20: v.getUint8(0x20 + offset),
         };
-        Object.assign(this.Dataframe, v7d);      
+        Object.assign(this.Dataframe, v7d);
       }
     },
     parse80(data: ArrayBuffer) {
@@ -627,18 +624,23 @@ export default {
       return timestampMs + pause;
     },
 
-    async sendToEcu(bytes) {
-      if (!this.waitReply) {
-        this.sendBytes(bytes);
-        this.waitReply = true;
+    async sendQueuedToECU() {
+      if (!this.waitReply && this.queuedBytes.length) {
+        let byte = this.queuedBytes.shift()
+        this.sendBytes([byte]);
       } else {
+        this.debug("no queued bytes");
+      }
+    },
+
+    async sendToEcu(bytes) {
         this.queuedBytes.push(...bytes);
+        this.sendQueuedToECU();
         if (this.queuedBytes.length > 2) {
           this.debug("cleared queue");
           this.waitReply = false;
           this.queuedBytes = [];
         }
-      }
     },
 
     async sendBytes(bytes) {
@@ -841,6 +843,7 @@ export default {
               this.processCmd(cmd, data);
               len_cmd = 0;
               dataframe = [];
+              this.ser.replys.push(data);
               if (rest.length) {
                 cmd = rest[0];
                 dataframe = rest;
@@ -852,15 +855,13 @@ export default {
                   this.processCmd(cmd, data);
                   dataframe = [];
                   len_cmd = 0;
-                  this.waitReply=false;
+                  this.waitReply = false;
+                  this.sendQueuedToECU()
                 } else {
-                  this.waitReply=true;
+                  this.waitReply = true;
                 }
-              }
-              if ( !this.waitRreply && this.queuedBytes.length) 
-              {
-                debugger;
-                this.sendToEcu([this.queuedBytes.pop()])
+              } else {
+                this.sendQueuedToECU();
               }
               if (dataframe.length >= 40) {
                 this.debug("dataframe too long,");
@@ -881,7 +882,7 @@ export default {
       }
     },
     processCmd(cmd, data) {
-      this.last_reponse=data.substring(2);
+      this.last_reponse = data.substring(2);
       switch (cmd) {
         case 0x00:
           // slow init echo 0x00 0x00 0x00
@@ -900,13 +901,11 @@ export default {
           this.sendBytes([0x75]);
           break;
         case 0x75:
-          if ( this.ser.stage == 4)
-            this.sendBytes([0xd1]);
+          if (this.ser.stage == 4) this.sendToEcu([0xd1,0x80,0x7d]);
           this.ser.stage = 5;
-          //this.sendBytes([0xf4]);
           break;
         case 0xf4:
-          this.debug('0xf4 echo');
+          this.debug("0xf4 echo");
           break;
         case 0x7d:
           if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
@@ -927,11 +926,9 @@ export default {
 
           break;
         case 0xd0:
-          this.sendBytes([0x7d]);
           this.parseD0(data.substring(2));
           break;
         case 0xd1:
-          this.sendBytes([0x80]);
           this.parseD1(data.substring(2));
           break;
         default:
@@ -1003,12 +1000,13 @@ export default {
         <h6 class="card-title">Time</h6>
         <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
 
-    <!--    Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
+        <!--    Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
         Δ: {{ rpmD1 }} {{ rpmD2.val }}<br />
          {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
         MPH: {{ MPH }} KPH: {{ KPH }} <br />
         Δ {{ deltaDist }}m <br />
-     --> </div>
+     -->
+      </div>
     </div>
 
     <div class="card">
@@ -1052,8 +1050,6 @@ export default {
     </div>
   </div>
 
-
-
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
     <i class="fas fa-download"></i>
     Download
@@ -1069,62 +1065,59 @@ export default {
     Stop
   </button>
 
-
   <span v-if="faults.length">
     <label>Faults: </label>
     <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
       {{ fault }}
     </span>
-    
   </span>
-    <div class="btn-group float-right" role="group">
-  wait: {{ waitReply }} {{ queuedBytes }}
-    
+  <div class="btn-group float-right" role="group">
+    wait: {{ waitReply }} {{ queuedBytes }}
+
     <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="replaySerialStart()">
-    <i class="fas fa-refresh"></i>
-    Replay Serial
-  </button>
+      <i class="fas fa-refresh"></i>
+      Replay Serial
+    </button>
 
-  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStart()">
-    <i class="fas fa-refresh"></i>
-    Replay
-  </button>
+    <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStart()">
+      <i class="fas fa-refresh"></i>
+      Replay
+    </button>
 
-  <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
-    <i class="fas fa-stop"></i>
-  </button>
+    <button v-if="replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStop()">
+      <i class="fas fa-stop"></i>
+    </button>
 
-  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
-    <i class="fas fa-backward"></i>
-  </button>
+    <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(-10)">
+      <i class="fas fa-backward"></i>
+    </button>
 
-  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
-    <i class="fas fa-pause"></i>
-  </button>
+    <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
+      <i class="fas fa-pause"></i>
+    </button>
 
-  <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(10)">
-    <i class="fas fa-forward"></i>
-  </button>
+    <button v-if="replay.timer && !replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulateStep(10)">
+      <i class="fas fa-forward"></i>
+    </button>
 
-  <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
-    <i class="fas fa-play"></i>
-  </button>
-
-
-</div>
-{{last_reponse}} 
+    <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
+      <i class="fas fa-play"></i>
+    </button>
+  </div>
+  {{ last_reponse }}
   <hr />
 
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80,0x7d])">Data 80/7D</button>
 
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xf4])">
       <i class="fa fa-heart"></i>
     </button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xca])">0xca init</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd0])">ECU SER</button>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd1])">ECU ID/SER</button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd1,0x80,0x7d])">ECU ID/SER</button>
 
     <button class="btn btn-outline-danger btn-sm mr-2 mb-2 float-right" @click="sendToEcu([0xfa])">
       <i class="fa fa-undo"></i>
@@ -1196,12 +1189,18 @@ export default {
     </div>
   </div>
 
+   <pre style="overflow-y: scroll; height: 25vh">{{ debug_log.join("\n") }}</pre>
+
+Replys:
+<pre style="overflow-y: scroll; height: 25vh">{{ ser.replys.join("\n") }}</pre>
+
+   
+
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
     <template #layers>
       <Grid strokeDasharray="2,2" />
       <Line :dataKeys="['Time', 'EngineRPM']" type="natural" />
       <Line :dataKeys="['Time', 'LambdaVoltage']" type="natural" :lineStyle="{ stroke: 'red' }" />
-      <Line :dataKeys="['Time', 'rpmD2']" type="natural" :lineStyle="{ stroke: 'green' }" />
     </template>
 
     <template #widgets>
@@ -1211,7 +1210,6 @@ export default {
           Time: { hide: true },
           EngineRPM: { color: '#0077b6' },
           LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
-          rpmD2: { label: 'd2', color: 'green' },
           gear: { label: 'gear', color: 'black' },
         }"
       />
@@ -1228,7 +1226,6 @@ export default {
   </div>
   <hr />
 
-  <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
 </template>
 <style lang="scss">
 .card-columns {
