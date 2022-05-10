@@ -27,6 +27,7 @@ export default {
       waitReply: false,
       queuedBytes: [],
       expectingBytes: null,
+      last_reponse: "",
       rpmD1: 0,
       rpmD2: { min: [], max: [], val: 0 },
       weightKg: 820,
@@ -64,7 +65,6 @@ export default {
         stage: 0,
         retries: 0,
         pause: 0,
-        baud5init: false,
       },
       ECUID: "",
       ECUSerial: "",
@@ -141,39 +141,6 @@ export default {
         IntakeAirTempSensorFault: false,
         FuelPumpCircuitFault: false,
         ThrottlePotCircuitFault: false,
-        Analytics: {
-          ReadingFault: false,
-          IsEngineRunning: false,
-          IsEngineWarming: false,
-          IsAtOperatingTemp: false,
-          IsEngineIdle: false,
-          IsEngineIdleFault: false,
-          IdleSpeedFault: false,
-          IdleErrorFault: false,
-          IdleHotFault: false,
-          IdleBaseFault: false,
-          IsCruising: false,
-          IsClosedLoop: false,
-          IsClosedLoopExpected: false,
-          ClosedLoopFault: false,
-          IsThrottleActive: false,
-          MapFault: false,
-          VacuumFault: false,
-          IdleAirControlFault: false,
-          IdleAirControlRangeFault: false,
-          IdleAirControlJackFault: false,
-          O2SystemFault: false,
-          LambdaRangeFault: false,
-          LambdaOscillationFault: false,
-          ThermostatFault: false,
-          CoolantTempSensorFault: false,
-          IntakeAirTempSensorFault: false,
-          FuelPumpCircuitFault: false,
-          ThrottlePotCircuitFault: false,
-          CrankshaftSensorFault: false,
-          CoilFault: false,
-          IACPosition: 0,
-        },
         Dataframe80: "801c000000000000000000000000000000000000000000000000000000",
         Dataframe7d: "7d21000000000000000000000000000000000000000000000000000000000000000000",
       },
@@ -236,10 +203,22 @@ export default {
         "Uk801a",
         "Uk801b",
       ],
+      lambdaDamped: [435],
       debug_log: [],
     };
   },
   computed: {
+    AirFuelRatioCalc() {
+      if (this.LambdaVoltageDamped < 400) return "Lean";
+      if (this.LambdaVoltageDamped > 500) return "Rich";
+      return "Ok";
+    },
+
+    LambdaVoltageDamped() {
+      let sum = this.lambdaDamped.reduce((a,b ) => ( a + b ))
+      return (sum / this.lambdaDamped.length).toFixed(0);
+    },
+
     faults() {
       let f = [];
       if (this.Dataframe.DTC0 & 0x01) f.push("Coolant Sensor");
@@ -292,6 +271,8 @@ export default {
   },
   watch: {
     "Dataframe.Time"(before, after) {
+      this.lambdaDamped.unshift(this.Dataframe.LambdaVoltage);
+        this.lambdaDamped = this.lambdaDamped.slice(0,5);
       if (before && after) {
         let delta = this.hhmmss2secs(before) - this.hhmmss2secs(after);
         this.stopwatch = Number(this.stopwatch + delta);
@@ -337,7 +318,7 @@ export default {
 
   mounted() {},
   async unmounted() {
-    //await this.closeSerialPort();
+    await this.closeSerialPort();
     await this.replaySerialClose();
   },
   methods: {
@@ -569,7 +550,7 @@ export default {
           JackCount: v.getUint8(0x1f + offset),
           Uk7d20: v.getUint8(0x20 + offset),
         };
-        Object.assign(this.Dataframe, v7d);
+        Object.assign(this.Dataframe, v7d);      
       }
     },
     parse80(data: ArrayBuffer) {
@@ -633,16 +614,17 @@ export default {
       }
     },
 
-    async waitUntilPerf(timestampMs) {
+    async waitUntilPerf(timestampMs, pause) {
       const start = performance.now();
       while (performance.now() < timestampMs) {
         await new Promise((resolve) => setTimeout(resolve, 1));
         let delta = performance.now() - start;
         if (delta < 10) {
           while (performance.now() < timestampMs) {}
-          return;
+          break;
         }
       }
+      return timestampMs + pause;
     },
 
     async sendToEcu(bytes) {
@@ -695,6 +677,7 @@ export default {
       log.MemsData = [];
     },
     async closeSerialPort() {
+      this.ser.stage = 6;
       if (this.ser.reader) {
         await this.ser.reader.cancel();
       }
@@ -739,42 +722,25 @@ export default {
       }
     },
     async slowInit(ecuAddress) {
-      await this.ser.port.setSignals({ break: false });
       let pause = 200;
-      await this.wait(200);
       let before = performance.now();
+      await this.ser.port.setSignals({ break: false });
+
+      before = await this.waitUntilPerf(before, pause);
 
       await this.ser.port.setSignals({ break: true });
-      await this.waitUntilPerf(before + pause);
-      //ecuAddress=ecuAddress << 1 | 1;
-
-      this.debug(`0 1  ${ecuAddress.toString(2).padStart(8, 0)} 1`);
-
-      await this.wait(pause);
+      before = await this.waitUntilPerf(before, pause);
 
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
 
         await this.ser.port.setSignals({ break: !bit });
-        this.debug(`${i}  ${bit} ${!bit}`);
-        await this.waitUntilPerf(before + pause + (i + 1) * pause);
+        before = await this.waitUntilPerf(before, pause);
       }
-      // stop bit:
       await this.ser.port.setSignals({ break: false });
-      await this.waitUntilPerf(before + 10 * pause);
+      before = await this.waitUntilPerf(before, pause);
     },
 
-    async slowInitNew(ecuAddress) {
-      let bits = `01${ecuAddress.toString(2).padStart(8, 0)}1`.split('');
-      this.debug(bits);
-      let before = performance.now();
-      for (var i = 0; i < bits.length; i++) {
-        let bit = Number(bits[i]);
-        await this.ser.port.setSignals({ break: !bit });
-        //this.debug(`${i}  ${bit} ${!bit}`);
-        await this.waitUntilPerf(before + (i + 1) * 200);
-      }
-    },
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
       try {
@@ -797,24 +763,17 @@ export default {
       this.ser.stage = 4;
       this.sendBytes([0xca]);
 
-      //await this.slowInit(0x16);
-      await this.slowInitNew(0x16);
-
       this.ser.connectTimer = setInterval(async () => {
-        //if (!this.baud5init) return;
         if (this.ser.stage != 2) return;
-
         await this.slowInit(0x16);
 
         this.ser.retries--;
 
         this.ser.stage = 2;
-        this.debug(`done slow: ${performance.now() - start}\n`);
       }, 3000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
-        this.debug("listening..");
         this.ser.reader = this.ser.port.readable.getReader();
         let cmd = 0;
         let len_cmd = 0;
@@ -854,15 +813,14 @@ export default {
               }
             }
             this.ser.dataframe = dataframe;
-            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog2 == null) {
-              if (this.watchdog2) {
-                clearTimeout(this.watchdog2);
+            if (len_cmd > 0 && dataframe.length < len_cmd && this.watchdog == null) {
+              if (this.watchdog) {
+                clearTimeout(this.watchdog);
               }
-              this.watchdog2 = setTimeout(() => {
-                this.watchdog2 = null;
+              this.watchdog = setTimeout(() => {
+                this.watchdog = null;
                 this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
-                  this.baud5init = true;
                   this.ser.stage = 2;
                 }
                 this.waitReply = false;
@@ -873,8 +831,8 @@ export default {
               }, 500);
             }
             if (dataframe.length == len_cmd) {
-              if (this.watchdog2) {
-                clearTimeout(this.watchdog2);
+              if (this.watchdog) {
+                clearTimeout(this.watchdog);
                 this.watchdog = null;
               }
               this.waitReply = false; // Allow commands to be sent
@@ -894,7 +852,15 @@ export default {
                   this.processCmd(cmd, data);
                   dataframe = [];
                   len_cmd = 0;
+                  this.waitReply=false;
+                } else {
+                  this.waitReply=true;
                 }
+              }
+              if ( !this.waitRreply && this.queuedBytes.length) 
+              {
+                debugger;
+                this.sendToEcu([this.queuedBytes.pop()])
               }
               if (dataframe.length >= 40) {
                 this.debug("dataframe too long,");
@@ -915,62 +881,50 @@ export default {
       }
     },
     processCmd(cmd, data) {
+      this.last_reponse=data.substring(2);
       switch (cmd) {
         case 0x00:
-          // slow init
+          // slow init echo 0x00 0x00 0x00
           break;
         case 0x55:
-          this.debug(`0x55 -> 7c: \n`);
           this.ser.stage = 3;
           this.sendBytes([0x7c]);
           break;
         case 0x7c:
-          this.debug("got 7c -> ca");
           clearInterval(this.ser.connectTimer);
           this.ser.connectTimer = null;
           this.sendBytes([0xca]);
           break;
         case 0xca:
           this.ser.stage = 4;
-          this.debug("got ca -> 75");
           this.sendBytes([0x75]);
           break;
         case 0x75:
+          if ( this.ser.stage == 4)
+            this.sendBytes([0xd1]);
           this.ser.stage = 5;
-          this.debug("got 75 -> f4");
-          this.sendBytes([0xf4]);
+          //this.sendBytes([0xf4]);
           break;
         case 0xf4:
-          this.ser.stage = 5;
-          this.debug("got f4 -> d1");
-          this.sendBytes([0xd1]);
+          this.debug('0xf4 echo');
           break;
         case 0x7d:
-          if (data.length > 4) {
-            if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
-            this.parse7D(this.hexToBytes(data.substring(2)));
-            this.Dataframe.Time = this.Time();
-            this.Dataframe.Dataframe7d = data.substring(2);
-          } else {
-            console.log(`7d: short! ${data.length}`);
-          }
+          if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
+          this.parse7D(this.hexToBytes(data.substring(2)));
+          this.Dataframe.Time = this.Time();
+          this.Dataframe.Dataframe7d = data.substring(2);
+
           break;
         case 0x80:
-          if (data.length > 4) {
-            if (this.record.timer) this.sendToEcu([0x7d]); // Trigger next dataframe
-            this.parse80(this.hexToBytes(data.substring(2)));
-            this.Dataframe.Dataframe80 = data.substring(2);
-            this.log.MemsData.push({
-              Time: this.Dataframe.Time,
-              Dataframe80: this.Dataframe.Dataframe80,
-              Dataframe7d: this.Dataframe.Dataframe7d,
-            });
-          } else {
-            console.log(`80: short! ${data.length}`);
-            if (data.length == 1) {
-              this.debug("Lost connection...");
-            }
-          }
+          if (this.record.timer) this.sendToEcu([0x7d]); // Trigger next dataframe
+          this.parse80(this.hexToBytes(data.substring(2)));
+          this.Dataframe.Dataframe80 = data.substring(2);
+          this.log.MemsData.push({
+            Time: this.Dataframe.Time,
+            Dataframe80: this.Dataframe.Dataframe80,
+            Dataframe7d: this.Dataframe.Dataframe7d,
+          });
+
           break;
         case 0xd0:
           this.sendBytes([0x7d]);
@@ -1013,8 +967,92 @@ export default {
     </nav>
   </div>
 
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Connect</button>
-  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
+  <div class="container">
+    <div class="steps">
+      <progress id="progress" :value="(ser.stage - 1) * 20" max="100"></progress>
+      <div class="step-item">
+        <button @click="openSerialPort" class="step-button text-center text-white" :class="ser.stage === 1 ? 'active' : ''">1</button>
+        <div class="step-title">Start</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 2 ? 'active' : ''">2</button>
+        <div class="step-title">Slow Init</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 3 ? 'active' : ''">3</button>
+        <div class="step-title">Wake up</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 4 ? 'active' : ''">4</button>
+        <div class="step-title">Initialise</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 5 ? 'active' : ''">5</button>
+        <div class="step-title">Running</div>
+      </div>
+      <div class="step-item">
+        <button @click="closeSerialPort" class="step-button text-center text-white" :class="ser.stage === 6 ? 'active' : ''">6</button>
+        <div class="step-title">Stop</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-group text-center">
+    <div class="card" @keyup.enter="simulatePause()">
+      <div class="card-body">
+        <h6 class="card-title">Time</h6>
+        <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
+
+    <!--    Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
+        Δ: {{ rpmD1 }} {{ rpmD2.val }}<br />
+         {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
+        MPH: {{ MPH }} KPH: {{ KPH }} <br />
+        Δ {{ deltaDist }}m <br />
+     --> </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">RPM</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
+        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.EngineRPM" />
+
+        <h6 class="card-title">Throttle Angle</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ThrottleAngle }}</h3>
+        <input class="custom-range" type="range" min="0" max="100" :value="Dataframe.ThrottleAngle" />
+
+        <h6 class="card-title">Ignition Advance</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
+        <input class="custom-range" type="range" min="-20" max="40" :value="Dataframe.IgnitionAdvance" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
+        <input class="custom-range" type="range" min="0" max="1200" :value="Dataframe.LambdaVoltage" />
+        <p>{{ AirFuelRatioCalc }}</p>
+        <h6 class="card-title">Manifold Absolute Pressure</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
+        <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
+
+        <h6 class="card-title">Short Term Fuel Trim</h6>
+        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
+        <input class="custom-range" type="range" min="0" max="255" :value="Dataframe.ShortTermFuelTrim" />
+
+        <!--
+        Nm: {{ Nm }} <br />
+        {{ gForce }}g<br />
+        hp: {{ hp }}
+        <br />
+        ft/lb {{ ft_lb }}
+        -->
+      </div>
+    </div>
+  </div>
+
+
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
     <i class="fas fa-download"></i>
@@ -1031,7 +1069,18 @@ export default {
     Stop
   </button>
 
-  <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="replaySerialStart()">
+
+  <span v-if="faults.length">
+    <label>Faults: </label>
+    <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
+      {{ fault }}
+    </span>
+    
+  </span>
+    <div class="btn-group float-right" role="group">
+  wait: {{ waitReply }} {{ queuedBytes }}
+    
+    <button v-if="!replay.timer" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="replaySerialStart()">
     <i class="fas fa-refresh"></i>
     Replay Serial
   </button>
@@ -1060,131 +1109,11 @@ export default {
   <button v-if="replay.timer && replay.pause" class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="simulatePause()">
     <i class="fas fa-play"></i>
   </button>
+
+
+</div>
+{{last_reponse}} 
   <hr />
-
-  <div class="container">
-    <div class="steps">
-      <progress id="progress" :value="(ser.stage - 1) * 25" max="100"></progress>
-      <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage === 1 ? 'active' : ''">1</button>
-        <div class="step-title">Start</div>
-      </div>
-      <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage === 2 ? 'active' : ''">2</button>
-        <div class="step-title">Slow Init</div>
-      </div>
-      <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage === 3 ? 'active' : ''">3</button>
-        <div class="step-title">Wake up</div>
-      </div>
-      <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage === 4 ? 'active' : ''">4</button>
-        <div class="step-title">Initialise</div>
-      </div>
-      <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage === 5 ? 'active' : ''">5</button>
-        <div class="step-title">Done</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card-group text-center">
-    <div class="card" @keyup.enter="simulatePause()">
-      <div class="card-body">
-        <h6 class="card-title">Time</h6>
-        <h3 class="card-text text-monospace">{{ stopwatchFormat }}</h3>
-
-        Gear: {{ gear }} i:{{ Dataframe.IdleSwitch }}<br />
-        Δ: {{ rpmD1 }} {{ rpmD2.val }}<br />
-        <!--  {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />-->
-        MPH: {{ MPH }} KPH: {{ KPH }} <br />
-        Δ {{ deltaDist }}m <br />
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">RPM</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.EngineRPM }}</h3>
-        <input class="custom-range" type="range" min="0" max="7500" :value="Dataframe.EngineRPM" />
-
-        <h6 class="card-title">Throttle Angle</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.ThrottleAngle }}</h3>
-        <input class="custom-range" type="range" min="0" max="100" :value="Dataframe.ThrottleAngle" />
-
-        <h6 class="card-title">Ignition Advance</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
-        <input class="custom-range" type="range" min="-20" max="40" :value="Dataframe.IgnitionAdvance" />
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
-        <input class="custom-range" type="range" min="0" max="1200" :value="Dataframe.LambdaVoltage" />
-
-        <h6 class="card-title">Manifold Absolute Pressure</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
-        <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
-
-        <h6 class="card-title">Short Term Fuel Trim</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
-        <input class="custom-range" type="range" min="0" max="255" :value="Dataframe.ShortTermFuelTrim" />
-
-        <!--
-        Nm: {{ Nm }} <br />
-        {{ gForce }}g<br />
-        hp: {{ hp }}
-        <br />
-        ft/lb {{ ft_lb }}
-        -->
-      </div>
-    </div>
-  </div>
-
-  <div v-if="0" class="card-group text-center mt-2">
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Short Term Fuel Trim</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Ignition Advance</h6>
-        <h3 class="card-text text-monospace">{{ Dataframe.IgnitionAdvance }}</h3>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h6 class="card-title">Battery Voltage</h6>
-        pu,p
-        <h3 class="card-text text-monospace">{{ Dataframe.BatteryVoltage }}</h3>
-      </div>
-    </div>
-  </div>
-
-  <!--    <VueSvgGauge
-  :start-angle="-110"
-  :end-angle="110"
-  :value="3"
-  :separator-step="1"
-  :min="0"
-  :max="4"
-  :gauge-color="[{ offset: 0, color: '#347AB0'}, { offset: 100, color: '#8CDFAD'}]"
-  :scale-interval="0.1"
-/>
--->
-  <p v-if="faults.length">
-    <span class="float-right"> wait: {{ waitReply }} {{ queuedBytes }} </span>
-    <label>Faults: </label>
-    <span class="badge badge-dark ml-2" v-for="fault in faults" v-bind:key="fault">
-      {{ fault }}
-    </span>
-  </p>
 
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
@@ -1267,7 +1196,6 @@ export default {
     </div>
   </div>
 
-  <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
     <template #layers>
       <Grid strokeDasharray="2,2" />
@@ -1300,13 +1228,7 @@ export default {
   </div>
   <hr />
 
-  <label
-    ><span class="badge badge-light">{{ Dataframe.Dataframe7d.length }} {{ Dataframe.Dataframe7d }}</span></label
-  >
-  <label
-    ><span class="badge badge-light">{{ Dataframe.Dataframe80.length }} {{ Dataframe.Dataframe80 }}</span></label
-  >
-  <br />
+  <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
 </template>
 <style lang="scss">
 .card-columns {
