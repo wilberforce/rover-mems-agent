@@ -4,7 +4,7 @@
 //import imported_data from "./data/run-1649822529717.fcr.json";
 //import imported_data from "./data/run-1652058533489.fcr.json";
 
-import imported_data from "./data/run-1652139960583.fcr.json"
+import imported_data from "./data/run-1652139960583.fcr.json";
 //import imported_data from "./data/run-1651531224249.fcr.json";  // Small start up
 
 //import imported_data from "./data/nofaults.fcr.json";
@@ -65,7 +65,6 @@ export default {
         retries: 0,
         pause: 0,
         baud5init: false,
-        
       },
       ECUID: "",
       ECUSerial: "",
@@ -739,7 +738,43 @@ export default {
           return 3;
       }
     },
+    async slowInit(ecuAddress) {
+      await this.ser.port.setSignals({ break: false });
+      let pause = 200;
+      await this.wait(200);
+      let before = performance.now();
 
+      await this.ser.port.setSignals({ break: true });
+      await this.waitUntilPerf(before + pause);
+      //ecuAddress=ecuAddress << 1 | 1;
+
+      this.debug(`0 1  ${ecuAddress.toString(2).padStart(8, 0)} 1`);
+
+      await this.wait(pause);
+
+      for (var i = 0; i < 8; i++) {
+        let bit = (ecuAddress >> i) & 1;
+
+        await this.ser.port.setSignals({ break: !bit });
+        this.debug(`${i}  ${bit} ${!bit}`);
+        await this.waitUntilPerf(before + pause + (i + 1) * pause);
+      }
+      // stop bit:
+      await this.ser.port.setSignals({ break: false });
+      await this.waitUntilPerf(before + 10 * pause);
+    },
+
+    async slowInitNew(ecuAddress) {
+      let bits = `01${ecuAddress.toString(2).padStart(8, 0)}1`.split('');
+      this.debug(bits);
+      let before = performance.now();
+      for (var i = 0; i < bits.length; i++) {
+        let bit = Number(bits[i]);
+        await this.ser.port.setSignals({ break: !bit });
+        //this.debug(`${i}  ${bit} ${!bit}`);
+        await this.waitUntilPerf(before + (i + 1) * 200);
+      }
+    },
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
       try {
@@ -755,58 +790,27 @@ export default {
         this.debug("port is already open - refresh page to close");
         return;
       }
-      let ecuAddress = 0x16;
       this.ser.retries = 10;
 
       let start = 0;
 
-      this.ser.stage=4;
+      this.ser.stage = 4;
       this.sendBytes([0xca]);
+
+      //await this.slowInit(0x16);
+      await this.slowInitNew(0x16);
 
       this.ser.connectTimer = setInterval(async () => {
         //if (!this.baud5init) return;
-        if (this.ser.stage!=2) return;
-        this.debug(`Attempt ${this.ser.retries} ECU connect (${ecuAddress.toString(16)}) (slow init)`);
+        if (this.ser.stage != 2) return;
+
+        await this.slowInit(0x16);
+
         this.ser.retries--;
 
-        await this.ser.port.setSignals({ break: false });
-        let pause = 200;
-        start = performance.now();
-        await this.wait(200);
-        let before = performance.now();
-        let last = performance.now();
-
-       await this.ser.port.setSignals({ break: true });
-        await this.waitUntilPerf(before + pause);
-//ecuAddress=ecuAddress << 1 | 1;
-
-this.debug(`0 1  ${ecuAddress.toString(2).padStart(8,0)} 1`)
-        let split = 0;
-        let next = 0;
-        await this.wait(pause);
-
-        for (var i = 0; i < 8; i++) {
-          let bit = (ecuAddress >> i) & 1;
-          /*
-          if (bit > 0) {
-            //this.debug(bit)
-            await this.ser.port.setSignals({ brk: false, break: false });
-          } else {
-            //this.debug(bit)
-            await this.ser.port.setSignals({ brk: true, break: true });
-          }
-          */
-await this.ser.port.setSignals({ break: !bit });
-await this.waitUntilPerf(before + pause + (i + 1) * pause);
-        }
-        // stop bit:
-        await this.ser.port.setSignals({ brk: false, break: false });
-
-        await this.waitUntilPerf(before + 10 * pause);
-//        await this.wait(pause);
-        this.ser.stage=2;
+        this.ser.stage = 2;
         this.debug(`done slow: ${performance.now() - start}\n`);
-      },3000);
+      }, 3000);
 
       this.waitReply = false;
       while (this.ser.port?.readable) {
@@ -859,7 +863,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
                 this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
                   this.baud5init = true;
-                  this.ser.stage=2;
+                  this.ser.stage = 2;
                 }
                 this.waitReply = false;
 
@@ -917,7 +921,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
           break;
         case 0x55:
           this.debug(`0x55 -> 7c: \n`);
-          this.ser.stage=3;
+          this.ser.stage = 3;
           this.sendBytes([0x7c]);
           break;
         case 0x7c:
@@ -927,17 +931,17 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
           this.sendBytes([0xca]);
           break;
         case 0xca:
-          this.ser.stage=4;
+          this.ser.stage = 4;
           this.debug("got ca -> 75");
           this.sendBytes([0x75]);
           break;
         case 0x75:
-          this.ser.stage=5;
+          this.ser.stage = 5;
           this.debug("got 75 -> f4");
           this.sendBytes([0xf4]);
           break;
         case 0xf4:
-          this.ser.stage=5;
+          this.ser.stage = 5;
           this.debug("got f4 -> d1");
           this.sendBytes([0xd1]);
           break;
@@ -980,7 +984,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
           break;
       }
     },
-  }
+  },
 };
 </script>
 
@@ -1009,7 +1013,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
     </nav>
   </div>
 
-<button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Connect</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="openSerialPort">Connect</button>
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="closeSerialPort()">Disconnect</button>
 
   <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="download()">
@@ -1058,52 +1062,31 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
   </button>
   <hr />
 
-<div class="container">
-<div class="steps">
-    <progress id="progress" :value="(ser.stage-1)*25" max="100"></progress>
-    <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage===1?'active':''">
-            1
-        </button>
-        <div class="step-title">
-            Start
-        </div>
+  <div class="container">
+    <div class="steps">
+      <progress id="progress" :value="(ser.stage - 1) * 25" max="100"></progress>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 1 ? 'active' : ''">1</button>
+        <div class="step-title">Start</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 2 ? 'active' : ''">2</button>
+        <div class="step-title">Slow Init</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 3 ? 'active' : ''">3</button>
+        <div class="step-title">Wake up</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 4 ? 'active' : ''">4</button>
+        <div class="step-title">Initialise</div>
+      </div>
+      <div class="step-item">
+        <button class="step-button text-center text-white" :class="ser.stage === 5 ? 'active' : ''">5</button>
+        <div class="step-title">Done</div>
+      </div>
     </div>
-    <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage===2?'active':''">
-            2
-        </button>
-        <div class="step-title">
-            Slow Init
-        </div>
-    </div>
-    <div class="step-item">
-        <button class="step-button text-center text-white"  :class="ser.stage===3?'active':''">
-            3
-        </button>
-        <div class="step-title">
-            Wake up
-        </div>
-    </div>
-    <div class="step-item">
-        <button class="step-button text-center text-white"  :class="ser.stage===4?'active':''">
-            4
-        </button>
-        <div class="step-title">
-            Initialise
-        </div>
-    </div>
-    <div class="step-item">
-        <button class="step-button text-center text-white"  :class="ser.stage===5?'active':''">
-            5
-        </button>
-        <div class="step-title">
-            Done
-        </div>
-    </div>        
-</div>
-</div>
-
+  </div>
 
   <div class="card-group text-center">
     <div class="card" @keyup.enter="simulatePause()">
@@ -1144,7 +1127,6 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
         <h6 class="card-title">Manifold Absolute Pressure</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
         <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
-
 
         <h6 class="card-title">Short Term Fuel Trim</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.ShortTermFuelTrim }}</h3>
@@ -1254,7 +1236,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x89])">+</button>
     </div>
 
-    <div class="btn-group  mr-2 mr-2" role="group">
+    <div class="btn-group mr-2 mr-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7a])">-</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
@@ -1272,8 +1254,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
         ></span
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x94])">+</button>
-    
-     </div>
+    </div>
 
     <div class="btn-group mt-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xfe])">-</button>
@@ -1283,10 +1264,7 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
         ></span
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xfd])">+</button>
-    
     </div>
-
-    
   </div>
 
   <pre style="overflow-y: scroll; height: 20vh">{{ debug_log.join("\n") }}</pre>
@@ -1340,42 +1318,42 @@ await this.waitUntilPerf(before + pause + (i + 1) * pause);
 }
 
 #progress {
-    -webkit-appearance: none;
-    position: absolute;
-    width: 95%;
-    z-index: 5;
-    height: 10px;
-    margin-left: 18px;
-    margin-bottom: 18px;
+  -webkit-appearance: none;
+  position: absolute;
+  width: 95%;
+  z-index: 5;
+  height: 10px;
+  margin-left: 18px;
+  margin-bottom: 18px;
 }
 
 .steps {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  position: relative;
 }
 
 .step-button {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    border: none;
-    background-color: var(--gray);
-    transition: .4s;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--gray);
+  transition: 0.4s;
 }
 
-.step-button[aria-expanded="true"], .step-button.active {
-    width: 60px;
-    height: 60px;
-    background-color: var(--blue);
-    color: #fff;
+.step-button[aria-expanded="true"],
+.step-button.active {
+  width: 60px;
+  height: 60px;
+  background-color: var(--blue);
+  color: #fff;
 }
 
 .step-item {
-    z-index: 10;
-    text-align: center;
+  z-index: 10;
+  text-align: center;
 }
-
 </style>
