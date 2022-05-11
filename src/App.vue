@@ -207,7 +207,7 @@ export default {
   },
   computed: {
     AirFuelRatioCalc() {
-      return ((this.LambdaVoltageDamped - 450 ) /100).toFixed(0)*10;
+      return ((this.LambdaVoltageDamped - 450) / 100).toFixed(0) * 10;
     },
     AirFuelRatioLabel() {
       if (this.LambdaVoltageDamped < 400) return "Lean";
@@ -365,54 +365,72 @@ export default {
       this.replay.step = step;
 
       this.replay.reader = this.replay.port.readable.getReader();
-
+      let first = 0;
       while (true) {
-        const { value, done } = await this.replay.reader.read();
-        if (value) {
-          let hex = this.hex(Array.from(value));
-          switch (value[0]) {
-            case 0x00:
-              this.replayWrite("557583", false);
-              break;
-            case 0xca:
-              this.replayWrite("CACA", false);
-              break;
-            case 75:
-              this.replayWrite("7575", false);
-              break;
-            case 0xf4:
-              this.replayWrite("F4F400", false);
-              break;
-            case 0x7c:
-              this.replayWrite("7ce9", false);
-              break;
+        //try {
+          const { value, done } = await this.replay.reader.read();
+          if (value) {
+            let hex = this.hex(Array.from(value));
+            this.ser.replys.push("<< " + hex);
+            switch (value[0]) {
+              case 0x00:
+                first++;
+                if (first >= 3) {
+                  this.replayWrite("557583", false); // after 0x00 0x00 0x00
+                }
+                break;
+              case 0xca:
+                if (first === 0) {
+                  this.replayWrite("CA", false);
+                } else {
+                  this.replayWrite("CACA", false);
+                  first++;
+                }
+                break;
+              case 75:
+                this.replayWrite("7575", false);
+                break;
+              case 0xf4:
+                this.replayWrite("F4F400", false);
+                break;
+              case 0x7c:
+                this.replayWrite("7ce9", false);
+                break;
 
-            case 0x80:
-              let data = imported_data.MemsData[this.replay.step];
-              this.replayWrite(data.Dataframe80);
-              this.replay.step++;
-              break;
-            case 0x7d:
-              this.replaySerial();
-              break;
-            case 0xd0:
-              this.replayWrite("d04b4c4833");
-              break;
-            case 0xd1:
-              this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
-              break;
-            default:
-              //Echo
-              this.replayWrite(`${hex}01`);
-              console.log(`cmd: ${hex}`);
-              break;
+              case 0x80:
+                let data = imported_data.MemsData[this.replay.step];
+                this.replayWrite(data.Dataframe80);
+                this.replay.step++;
+                break;
+              case 0x7d:
+                this.replaySerial();
+                break;
+              case 0xd0:
+                this.replayWrite("d04b4c4833");
+                break;
+              case 0xd1:
+                this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
+                break;
+              default:
+                //Echo
+                this.replayWrite(`${hex}01`);
+                console.log(`cmd: ${hex}`);
+                break;
+            }
           }
+          if (done) {
+            console.log("Serial replay Release Lock", done);
+            this.replay.reader.releaseLock();
+            break;
+          }
+          /*
+        } catch (error) {
+          this.debug(`error: ${error.message}`);
+          this.debug(error);
+        } finally {
+          this.debug('finally!')
         }
-        if (done) {
-          console.log("Serial replay Release Lock", done);
-          this.replay.reader.releaseLock();
-          break;
-        }
+        */
       }
     },
     async replaySerialClose() {
@@ -513,7 +531,6 @@ export default {
       let len = v.getUint8(1);
       if (len != 33 || !(v.getUint8(0) == 0x7d && v.byteLength >= 33)) {
         this.debug(`expected len 33 for 0x7d got ${len}`);
-        debugger;
         return;
       } else {
         let offset = 1;
@@ -696,8 +713,8 @@ export default {
           return 30;
         case 0x7d:
           if (dataframe.length > 2) {
-            return dataframe[2] + 2; 
-          } 
+            return dataframe[2] + 2;
+          }
 
           return 35;
         case 0xd0:
@@ -709,21 +726,23 @@ export default {
           return 3;
       }
     },
-    async assertSignalAndWait(before,pause, brk) {
+    async assertSignalAndWait(before, pause, brk) {
       await this.ser.port.setSignals({ break: brk });
       return await this.waitUntil(before, pause);
     },
     async slowInit(ecuAddress) {
       let pause = 200;
-      let before = await this.assertSignalAndWait(performance.now(),pause, false)
-      before = await this.assertSignalAndWait(before,pause, true)
-
+      this.ser.stage = 2;
+      this.ser.stage += 0.1;
+      let before = await this.assertSignalAndWait(performance.now(), pause, false);
+      before = await this.assertSignalAndWait(before, pause, true);
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-        before = await this.assertSignalAndWait(before,pause, !bit)
+        this.ser.stage += 0.1;
+        before = await this.assertSignalAndWait(before, pause, !bit);
       }
-      await this.assertSignalAndWait(before,pause,false)
-      this.ser.stage = 2;
+      await this.assertSignalAndWait(before, pause, false);
+      this.ser.stage += 0.1;
     },
 
     /*
@@ -865,7 +884,8 @@ caca
           this.ser.reader.releaseLock();
           this.ser.reader = null;
           this.debug("released lock");
-          await this.wait(1000);
+          debugger;
+          await this.waitUntil(performance.now(), 2000);
         }
       }
     },
@@ -969,7 +989,7 @@ caca
         <div class="step-title">Start</div>
       </div>
       <div class="step-item">
-        <button @click="slowInit(0x16)" class="step-button text-center text-white" :class="ser.stage === 2 ? 'active' : ''">2</button>
+        <button @click="slowInit(0x16)" class="step-button text-center text-white" :class="ser.stage >= 2 && ser.stage < 3 ? 'active' : ''">2</button>
         <div class="step-title">Slow Init</div>
       </div>
       <div class="step-item">
@@ -1027,8 +1047,8 @@ caca
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
         <input class="custom-range" type="range" min="0" max="1200" :value="LambdaVoltageDamped" />
-        <p>{{ AirFuelRatioLabel }} {{AirFuelRatioCalc}}</p>
-  
+        <p>{{ AirFuelRatioLabel }} {{ AirFuelRatioCalc }}</p>
+
         <h6 class="card-title">Manifold Absolute Pressure</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
         <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
@@ -1185,6 +1205,15 @@ caca
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xfd])">+</button>
     </div>
+
+    <div class="btn-group mt-2" role="group">
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf3])">Diag 0x4</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf5])">Diag 0x3</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf0])">Read Diag mode</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf7])">Read Calibration</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x70])">Read Block 0x70</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x71])">Read Block 0x71</button>
+    </div>
   </div>
   <hr />
   <div class="row">
@@ -1202,7 +1231,6 @@ caca
       <Line :dataKeys="['Time', 'EngineRPM']" type="natural" />
       <Line :dataKeys="['Time', 'LambdaVoltage']" type="natural" :lineStyle="{ stroke: 'red' }" />
       <Line :dataKeys="['Time', 'AFR']" type="natural" :lineStyle="{ stroke: 'yellow' }" />
-  
     </template>
 
     <template #widgets>
