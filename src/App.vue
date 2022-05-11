@@ -628,8 +628,6 @@ export default {
       if (!this.waitReply && this.queuedBytes.length) {
         let byte = this.queuedBytes.shift()
         this.sendBytes([byte]);
-      } else {
-        this.debug("no queued bytes");
       }
     },
 
@@ -741,8 +739,15 @@ export default {
       }
       await this.ser.port.setSignals({ break: false });
       before = await this.waitUntilPerf(before, pause);
+      this.ser.stage = 2;
     },
 
+
+/*
+557683
+7ce9
+caca
+*/
     async openSerialPort() {
       this.ser.port = await navigator.serial.requestPort();
       try {
@@ -771,7 +776,7 @@ export default {
 
         this.ser.retries--;
 
-        this.ser.stage = 2;
+        
       }, 3000);
 
       this.waitReply = false;
@@ -901,8 +906,11 @@ export default {
           this.sendBytes([0x75]);
           break;
         case 0x75:
-          if (this.ser.stage == 4) this.sendToEcu([0xd1,0x80,0x7d]);
-          this.ser.stage = 5;
+          if (this.ser.stage == 4) 
+          this.sendBytes([0xd1]);
+          this.ser.stage = 5;  
+          // this.sendToEcu([0x80,0x7d]);
+          
           break;
         case 0xf4:
           this.debug("0xf4 echo");
@@ -926,9 +934,11 @@ export default {
 
           break;
         case 0xd0:
+          this.sendBytes([0x7d]);
           this.parseD0(data.substring(2));
           break;
         case 0xd1:
+          this.sendBytes([0x80]);
           this.parseD1(data.substring(2));
           break;
         default:
@@ -972,7 +982,7 @@ export default {
         <div class="step-title">Start</div>
       </div>
       <div class="step-item">
-        <button class="step-button text-center text-white" :class="ser.stage === 2 ? 'active' : ''">2</button>
+        <button @click="slowInit(0x16)" class="step-button text-center text-white" :class="ser.stage === 2 ? 'active' : ''">2</button>
         <div class="step-title">Slow Init</div>
       </div>
       <div class="step-item">
