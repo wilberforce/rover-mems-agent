@@ -906,14 +906,13 @@ caca
           this.sendBytes([0x75]);
           break;
         case 0x75:
-          if (this.ser.stage == 4) 
-          this.sendBytes([0xd1]);
-          this.ser.stage = 5;  
-          // this.sendToEcu([0x80,0x7d]);
+          this.sendBytes([0xf4]);
           
           break;
         case 0xf4:
           this.debug("0xf4 echo");
+           if (this.ser.stage == 4)
+           this.sendBytes([0xd1]);
           break;
         case 0x7d:
           if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
@@ -938,8 +937,14 @@ caca
           this.parseD0(data.substring(2));
           break;
         case 0xd1:
-          this.sendBytes([0x80]);
           this.parseD1(data.substring(2));
+           
+          if ( this.ser.stage === 4 ) {
+            this.sendBytes([0x80]);
+            this.sendToEcu([0x79]);
+          }
+          this.ser.stage = 5;
+
           break;
         default:
           break;
