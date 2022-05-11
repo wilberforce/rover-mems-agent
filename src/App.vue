@@ -66,6 +66,7 @@ export default {
         retries: 0,
         pause: 0,
         replys: [] as string[],
+        replysRaw: [] as string[],
       },
       ECUID: "",
       ECUSerial: "",
@@ -616,6 +617,19 @@ export default {
       return bytes;
     },
 
+    async wait(ms) {
+      const start = performance.now();
+      ms++;
+      while (performance.now() - start < ms) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        let delta = performance.now() - start;
+        if (ms - delta < 10) {
+          while (performance.now() - start < ms) {}
+          return;
+        }
+      }
+    },
+
     async waitUntil(timestampMs, pause) {
       const start = performance.now();
       while (performance.now() < timestampMs) {
@@ -796,6 +810,8 @@ caca
               break;
             }
             let inbound = Array.from(value);
+            let raw = this.hex(inbound);
+            this.ser.replysRaw.push(raw);
             let rest = [];
             if (len_cmd == 0) {
               cmd = inbound[0];
@@ -884,8 +900,7 @@ caca
           this.ser.reader.releaseLock();
           this.ser.reader = null;
           this.debug("released lock");
-          debugger;
-          await this.waitUntil(performance.now(), 2000);
+          await this.wait(1000);
         }
       }
     },
@@ -1223,6 +1238,9 @@ caca
     <div class="col-6">
       <pre style="overflow-y: scroll; height: 25vh">{{ ser.replys.join("\n") }}</pre>
     </div>
+    <div class="col-12">
+      <pre style="overflow-y: scroll; height: 25vh">{{ ser.replysRaw.join("\n") }}</pre>
+    </div>    
   </div>
   <hr />
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
