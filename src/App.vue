@@ -65,7 +65,7 @@ export default {
         stage: 0,
         retries: 0,
         pause: 0,
-        replys:[] as string[]
+        replys: [] as string[],
       },
       ECUID: "",
       ECUSerial: "",
@@ -207,6 +207,9 @@ export default {
   },
   computed: {
     AirFuelRatioCalc() {
+      return ((this.LambdaVoltageDamped - 450 ) /100).toFixed(0)*10;
+    },
+    AirFuelRatioLabel() {
       if (this.LambdaVoltageDamped < 400) return "Lean";
       if (this.LambdaVoltageDamped > 500) return "Rich";
       return "Ok";
@@ -307,6 +310,7 @@ export default {
           Time: this.stopwatchFormat,
           EngineRPM: this.Dataframe.EngineRPM,
           LambdaVoltage: this.LambdaVoltageDamped,
+          AFR: this.AirFuelRatioCalc,
           gear: this.gear,
         });
       }
@@ -594,24 +598,8 @@ export default {
       for (let c = 0; c < hex.length; c += 2) view.setUint8(c / 2, parseInt(hex.substr(c, 2), 16));
       return bytes;
     },
-    async sleep(ms) {
-      await new Promise((resolve) => setTimeout(resolve, ms));
-    },
 
-    async wait(ms) {
-      const start = performance.now();
-      ms++;
-      while (performance.now() - start < ms) {
-        await new Promise((resolve) => setTimeout(resolve, 1));
-        let delta = performance.now() - start;
-        if (ms - delta < 10) {
-          while (performance.now() - start < ms) {}
-          return;
-        }
-      }
-    },
-
-    async waitUntilPerf(timestampMs, pause) {
+    async waitUntil(timestampMs, pause) {
       const start = performance.now();
       while (performance.now() < timestampMs) {
         await new Promise((resolve) => setTimeout(resolve, 1));
@@ -626,19 +614,19 @@ export default {
 
     async sendQueuedToECU() {
       if (!this.waitReply && this.queuedBytes.length) {
-        let byte = this.queuedBytes.shift()
+        let byte = this.queuedBytes.shift();
         this.sendBytes([byte]);
       }
     },
 
     async sendToEcu(bytes) {
-        this.queuedBytes.push(...bytes);
-        this.sendQueuedToECU();
-        if (this.queuedBytes.length > 2) {
-          this.debug("cleared queue");
-          this.waitReply = false;
-          this.queuedBytes = [];
-        }
+      this.queuedBytes.push(...bytes);
+      this.sendQueuedToECU();
+      if (this.queuedBytes.length > 2) {
+        this.debug("cleared queue");
+        this.waitReply = false;
+        this.queuedBytes = [];
+      }
     },
 
     async sendBytes(bytes) {
@@ -708,8 +696,8 @@ export default {
           return 30;
         case 0x7d:
           if (dataframe.length > 2) {
-            return dataframe[2] + 2; // command is 34 0x21=>33 + 1
-          } // Need to handle case of single byte
+            return dataframe[2] + 2; 
+          } 
 
           return 35;
         case 0xd0:
@@ -721,29 +709,24 @@ export default {
           return 3;
       }
     },
+    async assertSignalAndWait(before,pause, brk) {
+      await this.ser.port.setSignals({ break: brk });
+      return await this.waitUntil(before, pause);
+    },
     async slowInit(ecuAddress) {
       let pause = 200;
-      let before = performance.now();
-      await this.ser.port.setSignals({ break: false });
-
-      before = await this.waitUntilPerf(before, pause);
-
-      await this.ser.port.setSignals({ break: true });
-      before = await this.waitUntilPerf(before, pause);
+      let before = await this.assertSignalAndWait(performance.now(),pause, false)
+      before = await this.assertSignalAndWait(before,pause, true)
 
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-
-        await this.ser.port.setSignals({ break: !bit });
-        before = await this.waitUntilPerf(before, pause);
+        before = await this.assertSignalAndWait(before,pause, !bit)
       }
-      await this.ser.port.setSignals({ break: false });
-      before = await this.waitUntilPerf(before, pause);
+      await this.assertSignalAndWait(before,pause,false)
       this.ser.stage = 2;
     },
 
-
-/*
+    /*
 557683
 7ce9
 caca
@@ -775,8 +758,6 @@ caca
         await this.slowInit(0x16);
 
         this.ser.retries--;
-
-        
       }, 3000);
 
       this.waitReply = false;
@@ -829,6 +810,8 @@ caca
                 this.debug(`watchdog timeout... ${dataframe.length} ${len_cmd} 0x${cmd.toString(16)}`);
                 if (cmd === 0xca) {
                   this.ser.stage = 2;
+                } else {
+                  //this.sendBytes([0xf4]);//send echo to re-sync
                 }
                 this.waitReply = false;
 
@@ -861,7 +844,7 @@ caca
                   dataframe = [];
                   len_cmd = 0;
                   this.waitReply = false;
-                  this.sendQueuedToECU()
+                  this.sendQueuedToECU();
                 } else {
                   this.waitReply = true;
                 }
@@ -907,12 +890,11 @@ caca
           break;
         case 0x75:
           this.sendBytes([0xf4]);
-          
+
           break;
         case 0xf4:
           this.debug("0xf4 echo");
-           if (this.ser.stage == 4)
-           this.sendBytes([0xd1]);
+          if (this.ser.stage == 4) this.sendBytes([0xd1]);
           break;
         case 0x7d:
           if (this.record.timer) this.sendToEcu([0x80]); // Trigger next dataframe
@@ -938,8 +920,8 @@ caca
           break;
         case 0xd1:
           this.parseD1(data.substring(2));
-           
-          if ( this.ser.stage === 4 ) {
+
+          if (this.ser.stage === 4) {
             this.sendBytes([0x80]);
             this.sendToEcu([0x79]);
           }
@@ -1044,8 +1026,9 @@ caca
       <div class="card-body">
         <h6 class="card-title">Lambda {{ !Dataframe.ClosedLoop ? "Closed" : "Open" }}</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.LambdaVoltage }}</h3>
-        <input class="custom-range" type="range" min="0" max="1200" :value="Dataframe.LambdaVoltage" />
-        <p>{{ AirFuelRatioCalc }}</p>
+        <input class="custom-range" type="range" min="0" max="1200" :value="LambdaVoltageDamped" />
+        <p>{{ AirFuelRatioLabel }} {{AirFuelRatioCalc}}</p>
+  
         <h6 class="card-title">Manifold Absolute Pressure</h6>
         <h3 class="card-text text-monospace">{{ Dataframe.ManifoldAbsolutePressure }}</h3>
         <input class="custom-range" type="range" min="0" max="101" :value="Dataframe.ManifoldAbsolutePressure" />
@@ -1125,14 +1108,14 @@ caca
   <div>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80,0x7d])">Data 80/7D</button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80, 0x7d])">Data 80/7D</button>
 
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xf4])">
       <i class="fa fa-heart"></i>
     </button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xca])">0xca init</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd0])">ECU SER</button>
-    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd1,0x80,0x7d])">ECU ID/SER</button>
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0xd1, 0x80, 0x7d])">ECU ID/SER</button>
 
     <button class="btn btn-outline-danger btn-sm mr-2 mb-2 float-right" @click="sendToEcu([0xfa])">
       <i class="fa fa-undo"></i>
@@ -1203,19 +1186,23 @@ caca
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xfd])">+</button>
     </div>
   </div>
-
-   <pre style="overflow-y: scroll; height: 25vh">{{ debug_log.join("\n") }}</pre>
-
-Replys:
-<pre style="overflow-y: scroll; height: 25vh">{{ ser.replys.join("\n") }}</pre>
-
-   
-
+  <hr />
+  <div class="row">
+    <div class="col-6">
+      <pre style="overflow-y: scroll; height: 25vh">{{ debug_log.join("\n") }}</pre>
+    </div>
+    <div class="col-6">
+      <pre style="overflow-y: scroll; height: 25vh">{{ ser.replys.join("\n") }}</pre>
+    </div>
+  </div>
+  <hr />
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
     <template #layers>
       <Grid strokeDasharray="2,2" />
       <Line :dataKeys="['Time', 'EngineRPM']" type="natural" />
       <Line :dataKeys="['Time', 'LambdaVoltage']" type="natural" :lineStyle="{ stroke: 'red' }" />
+      <Line :dataKeys="['Time', 'AFR']" type="natural" :lineStyle="{ stroke: 'yellow' }" />
+  
     </template>
 
     <template #widgets>
@@ -1224,6 +1211,7 @@ Replys:
         :config="{
           Time: { hide: true },
           EngineRPM: { color: '#0077b6' },
+          AFR: { color: 'yellow' },
           LambdaVoltage: { label: 'Lambda Voltage', color: 'red' },
           gear: { label: 'gear', color: 'black' },
         }"
@@ -1240,7 +1228,6 @@ Replys:
     </div>
   </div>
   <hr />
-
 </template>
 <style lang="scss">
 .card-columns {
