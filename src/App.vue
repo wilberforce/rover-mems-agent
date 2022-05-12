@@ -958,7 +958,7 @@ caca
 
           if (this.ser.stage === 4) {
             this.sendBytes([0x80]);
-            this.sendToEcu([0x79]);
+            //this.sendToEcu([0x80,0x79]);
           }
           this.ser.stage = 5;
 
@@ -1234,9 +1234,9 @@ caca
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf5])">Diag 0x3</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf0])">Read Diag mode</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf7])">Read Calibration</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xdc,0x00])">set block 00</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x70])">Read Block 0x70</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x80])">Read Block 0x80</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xdc,0x00])">set block 00</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x70])">Read Block 0x70</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x80])">Read Block 0x80</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="readRom()">ReadRom</button>
     </div>
   </div>
