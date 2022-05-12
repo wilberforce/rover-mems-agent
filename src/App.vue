@@ -747,16 +747,16 @@ export default {
     async slowInit(ecuAddress) {
       let pause = 200;
       this.ser.stage = 2;
-      this.ser.stage += 0.1;
       let before = await this.assertSignalAndWait(performance.now(), pause, false);
       before = await this.assertSignalAndWait(before, pause, true);
+      this.ser.stage += 0.3
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-        this.ser.stage += 0.1;
+        //this.ser.stage += 0.1;
         before = await this.assertSignalAndWait(before, pause, !bit);
       }
+      this.ser.stage += 0.3;
       await this.assertSignalAndWait(before, pause, false);
-      this.ser.stage += 0.1;
     },
 
     /*
