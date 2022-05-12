@@ -369,62 +369,62 @@ export default {
       let first = 0;
       while (true) {
         //try {
-          const { value, done } = await this.replay.reader.read();
-          if (value) {
-            let hex = this.hex(Array.from(value));
-            this.ser.replys.push("<< " + hex);
-            switch (value[0]) {
-              case 0x00:
+        const { value, done } = await this.replay.reader.read();
+        if (value) {
+          let hex = this.hex(Array.from(value));
+          this.ser.replys.push("<< " + hex);
+          switch (value[0]) {
+            case 0x00:
+              first++;
+              if (first >= 3) {
+                this.replayWrite("557583", false); // after 0x00 0x00 0x00
+              }
+              break;
+            case 0xca:
+              if (first === 0) {
+                this.replayWrite("CA", false);
+              } else {
+                this.replayWrite("CACA", false);
                 first++;
-                if (first >= 3) {
-                  this.replayWrite("557583", false); // after 0x00 0x00 0x00
-                }
-                break;
-              case 0xca:
-                if (first === 0) {
-                  this.replayWrite("CA", false);
-                } else {
-                  this.replayWrite("CACA", false);
-                  first++;
-                }
-                break;
-              case 75:
-                this.replayWrite("7575", false);
-                break;
-              case 0xf4:
-                this.replayWrite("F4F400", false);
-                break;
-              case 0x7c:
-                this.replayWrite("7ce9", false);
-                break;
+              }
+              break;
+            case 75:
+              this.replayWrite("7575", false);
+              break;
+            case 0xf4:
+              this.replayWrite("F4F400", false);
+              break;
+            case 0x7c:
+              this.replayWrite("7ce9", false);
+              break;
 
-              case 0x80:
-                let data = imported_data.MemsData[this.replay.step];
-                this.replayWrite(data.Dataframe80);
-                this.replay.step++;
-                break;
-              case 0x7d:
-                this.replaySerial();
-                break;
-              case 0xd0:
-                this.replayWrite("d04b4c4833");
-                break;
-              case 0xd1:
-                this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
-                break;
-              default:
-                //Echo
-                this.replayWrite(`${hex}01`);
-                console.log(`cmd: ${hex}`);
-                break;
-            }
+            case 0x80:
+              let data = imported_data.MemsData[this.replay.step];
+              this.replayWrite(data.Dataframe80);
+              this.replay.step++;
+              break;
+            case 0x7d:
+              this.replaySerial();
+              break;
+            case 0xd0:
+              this.replayWrite("d04b4c4833");
+              break;
+            case 0xd1:
+              this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
+              break;
+            default:
+              //Echo
+              this.replayWrite(`${hex}01`);
+              console.log(`cmd: ${hex}`);
+              break;
           }
-          if (done) {
-            console.log("Serial replay Release Lock", done);
-            this.replay.reader.releaseLock();
-            break;
-          }
-          /*
+        }
+        if (done) {
+          console.log("Serial replay Release Lock", done);
+          this.replay.reader.releaseLock();
+          break;
+        }
+        /*
         } catch (error) {
           this.debug(`error: ${error.message}`);
           this.debug(error);
@@ -749,7 +749,7 @@ export default {
       this.ser.stage = 2;
       let before = await this.assertSignalAndWait(performance.now(), pause, false);
       before = await this.assertSignalAndWait(before, pause, true);
-      this.ser.stage += 0.3
+      this.ser.stage += 0.3;
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
         //this.ser.stage += 0.1;
@@ -966,6 +966,14 @@ caca
         default:
           break;
       }
+    },
+    readRom() {
+      var downloadNextAddress2j = 0x100000;
+      var endOfDownload2j = 0x11ffff;
+      var fullRomSize2j = endOfDownload2j - downloadNextAddress2j + 1;
+      var fullRomData2j = [];
+      let len_to_read = 31;
+      this.sendBytes([0x23, (downloadNextAddress2j >> 16) & 0xff, (downloadNextAddress2j >> 8) & 0xff, (downloadNextAddress2j >> 0) & 0xff, len_to_read]);
     },
   },
 };
@@ -1226,8 +1234,10 @@ caca
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf5])">Diag 0x3</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf0])">Read Diag mode</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf7])">Read Calibration</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xdc,0x00])">set block 00</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x70])">Read Block 0x70</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x71])">Read Block 0x71</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x80])">Read Block 0x80</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="readRom()">ReadRom</button>
     </div>
   </div>
   <hr />
@@ -1240,7 +1250,7 @@ caca
     </div>
     <div class="col-12">
       <pre style="overflow-y: scroll; height: 25vh">{{ ser.replysRaw.join("\n") }}</pre>
-    </div>    
+    </div>
   </div>
   <hr />
   <Chart :key="chartKey" :margin="{ top: 10, right: 10, bottom: 10, left: 10 }" :size="chartSize" :data="history" direction="horizontal">
