@@ -354,84 +354,103 @@ export default {
     async replaySerialStart(step = 0) {
       this.replay.port = await navigator.serial.requestPort();
 
-      await this.replay.port.open({
-        baudRate: 9600,
-        databits: 8,
-        bufferSize: 16,
-        parity: "none",
-        stopbits: 1,
-        flowControl: "none",
-      });
-
+      try {
+        await this.replay.port.open({
+          baudRate: 9600,
+          databits: 8,
+          bufferSize: 16,
+          parity: "none",
+          stopbits: 1,
+          flowControl: "none",
+        });
+      } catch (error) {
+        this.debug("Ecu port is already open - refresh page to close");
+        return;
+      }
       this.replay.step = step;
 
       this.replay.reader = this.replay.port.readable.getReader();
       let first = 0;
+      let final = 0;
       while (true) {
-        //try {
-        const { value, done } = await this.replay.reader.read();
-        if (value) {
-          let hex = this.hex(Array.from(value));
-          this.ser.replys.push("<< " + hex);
-          switch (value[0]) {
-            case 0x00:
-              first++;
-              if (first >= 3) {
-                this.replayWrite("557583", false); // after 0x00 0x00 0x00
-              }
-              break;
-            case 0xca:
-              if (first === 0) {
-                this.replayWrite("CA", false);
-              } else {
-                this.replayWrite("CACA", false);
+        try {
+          const { value, done } = await this.replay.reader.read();
+          if (value) {
+            let hex = this.hex(Array.from(value));
+            this.ser.replys.push("<< " + hex);
+            switch (value[0]) {
+              case 0x00:
                 first++;
-              }
-              break;
-            case 75:
-              this.replayWrite("7575", false);
-              break;
-            case 0xf4:
-              this.replayWrite("F4F400", false);
-              break;
-            case 0x7c:
-              this.replayWrite("7ce9", false);
-              break;
+                if (first >= 3) {
+                  this.replayWrite("557583", false); // after 0x00 0x00 0x00
+                }
+                break;
+              case 0xca:
+                if (first === 0) {
+                  this.replayWrite("CA", false);
+                } else {
+                  this.replayWrite("CACA", false);
+                  first++;
+                }
+                break;
+              case 75:
+                this.replayWrite("7575", false);
+                break;
+              case 0xf4:
+                this.replayWrite("F4F400", false);
+                break;
+              case 0x7c:
+                this.replayWrite("7ce9", false);
+                break;
 
-            case 0x80:
-              let data = imported_data.MemsData[this.replay.step];
-              this.replayWrite(data.Dataframe80);
-              this.replay.step++;
-              break;
-            case 0x7d:
-              this.replaySerial();
-              break;
-            case 0xd0:
-              this.replayWrite("d04b4c4833");
-              break;
-            case 0xd1:
-              this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
-              break;
-            default:
-              //Echo
-              this.replayWrite(`${hex}01`);
-              console.log(`cmd: ${hex}`);
-              break;
+              case 0x80:
+                let data = imported_data.MemsData[this.replay.step];
+                this.replayWrite(data.Dataframe80);
+                this.replay.step++;
+                break;
+              case 0x7d:
+                this.replaySerial();
+                break;
+              case 0xd0:
+                this.replayWrite("d04b4c4833");
+                break;
+              case 0xd1:
+                this.replayWrite("d14b4c483356303035c70005cb4b4c483356303035c70005cb4b4c483356303035c70005cb");
+                break;
+              default:
+                //Echo
+                this.replayWrite(`${hex}01`);
+                console.log(`cmd: ${hex}`);
+                break;
+            }
           }
-        }
-        if (done) {
-          console.log("Serial replay Release Lock", done);
-          this.replay.reader.releaseLock();
-          break;
-        }
-        /*
+          if (done) {
+            console.log("Serial replay Release Lock", done);
+            this.replay.reader.releaseLock();
+            break;
+          }
         } catch (error) {
-          this.debug(`error: ${error.message}`);
-          this.debug(error);
+          //this.debug(`error: ${error.message}`);
+          //this.debug(error);
+          //await this.wait(500)
+          //console.log(error.message)
         } finally {
-          this.debug('finally!')
+          final++;
+          this.debug(`finally! ${final}`);
+          if (final == 5) {
+            this.replayWrite("557583", false); // Response sequence
+          }
+          if (final == 8) {
+            this.replayWrite("CA", false);
+          }
+          //await this.wait(300)
+          this.debug("release lock");
+          this.replay.reader.releaseLock();
+          await this.wait(300);
+          this.debug("reset reader");
+          this.replay.reader = this.replay.port.readable.getReader();
+          //debugger;
         }
-        */
       }
     },
     async replaySerialClose() {
@@ -1234,7 +1253,7 @@ caca
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf5])">Diag 0x3</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf0])">Read Diag mode</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf7])">Read Calibration</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xdc,0x00])">set block 00</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xdc, 0x00])">set block 00</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x70])">Read Block 0x70</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x80])">Read Block 0x80</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="readRom()">ReadRom</button>
