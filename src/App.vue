@@ -37,6 +37,7 @@ export default {
       lastDist: 0,
       deltaDist: 0,
       gear: 0,
+      Acceleration: [0,0,0],
       gearing: {
         0: 0,
         1: 5.64,
@@ -765,6 +766,14 @@ export default {
 caca
 */
     async openSerialPort() {
+      {
+        let laSensor = new LinearAccelerationSensor({ frequency: 3 });
+        laSensor.addEventListener("reading", (e) => {
+          this.Acceleration = [laSensor.x, laSensor.y, laSensor.z];
+        });
+        laSensor.start();
+      }
+
       this.ser.port = await navigator.serial.requestPort();
       try {
         await this.ser.port.open({
@@ -805,7 +814,7 @@ caca
           while (going) {
             const { value, done } = await this.ser.reader.read();
             if (done) {
-              console.log("done");
+              console.log("Open Serial Port");
               going = false;
               break;
             }
@@ -946,6 +955,7 @@ caca
             Time: this.Dataframe.Time,
             Dataframe80: this.Dataframe.Dataframe80,
             Dataframe7d: this.Dataframe.Dataframe7d,
+            Acceleration: this.Acceleration,
           });
 
           break;
@@ -1033,7 +1043,7 @@ caca
       </div>
     </div>
   </div>
-
+  
   <div class="card-group text-center">
     <div class="card" @keyup.enter="simulatePause()">
       <div class="card-body">
@@ -1046,6 +1056,7 @@ caca
         MPH: {{ MPH }} KPH: {{ KPH }} <br />
         Δ {{ deltaDist }}m <br />
      -->
+     <h3 class="card-text text-monospace">{{ Acceleration }}</h3>
       </div>
     </div>
 
@@ -1234,7 +1245,7 @@ caca
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf5])">Diag 0x3</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf0])">Read Diag mode</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0xf7])">Read Calibration</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xdc,0x00])">set block 00</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xdc, 0x00])">set block 00</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x70])">Read Block 0x70</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x80])">Read Block 0x80</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="readRom()">ReadRom</button>
