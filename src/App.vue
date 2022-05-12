@@ -65,7 +65,6 @@ export default {
         stage: 0,
         retries: 0,
         pause: 0,
-        replys: [] as string[],
         replysRaw: [] as string[],
       },
       ECUID: "",
@@ -358,7 +357,7 @@ export default {
         await this.replay.port.open({
           baudRate: 9600,
           databits: 8,
-          bufferSize: 16,
+          bufferSize: 32,
           parity: "none",
           stopbits: 1,
           flowControl: "none",
@@ -377,7 +376,6 @@ export default {
           const { value, done } = await this.replay.reader.read();
           if (value) {
             let hex = this.hex(Array.from(value));
-            this.ser.replys.push("<< " + hex);
             switch (value[0]) {
               case 0x00:
                 first++;
@@ -389,12 +387,12 @@ export default {
                 if (first === 0) {
                   this.replayWrite("CA", false);
                 } else {
-                  this.replayWrite("CACA", false);
+                  this.replayWrite("CA", true);
                   first++;
                 }
                 break;
-              case 75:
-                this.replayWrite("7575", false);
+              case 0x75:
+                this.replayWrite("75", true);
                 break;
               case 0xf4:
                 this.replayWrite("F4F400", false);
@@ -430,26 +428,11 @@ export default {
             break;
           }
         } catch (error) {
-          //this.debug(`error: ${error.message}`);
-          //this.debug(error);
-          //await this.wait(500)
-          //console.log(error.message)
+
         } finally {
-          final++;
-          this.debug(`finally! ${final}`);
-          if (final == 5) {
-            this.replayWrite("557583", false); // Response sequence
-          }
-          if (final == 8) {
-            this.replayWrite("CA", false);
-          }
-          //await this.wait(300)
-          this.debug("release lock");
           this.replay.reader.releaseLock();
-          await this.wait(300);
-          this.debug("reset reader");
+          await this.wait(100);
           this.replay.reader = this.replay.port.readable.getReader();
-          //debugger;
         }
       }
     },
@@ -465,9 +448,6 @@ export default {
         if (echo) data = data[0] + data[1] + data;
 
         let bytes = new Uint8Array(this.hexToBytes(data));
-        let hex = this.hex(Array.from(bytes));
-
-        this.debug(`<<ecu ${hex} (${bytes.length} bytes)`);
 
         let writer = this.replay.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
@@ -502,6 +482,8 @@ export default {
           this.parse80(this.hexToBytes(data.Dataframe80));
           this.Dataframe.Dataframe7d = x7d;
           this.Dataframe.Dataframe80 = data.Dataframe80;
+          this.ser.replysRaw.push('80'+data.Dataframe80);
+          this.ser.replysRaw.push('7d'+x7d);
           this.replay.step++;
         } else {
           this.simulateStop();
@@ -649,19 +631,6 @@ export default {
       }
     },
 
-    async waitUntil(timestampMs, pause) {
-      const start = performance.now();
-      while (performance.now() < timestampMs) {
-        await new Promise((resolve) => setTimeout(resolve, 1));
-        let delta = performance.now() - start;
-        if (delta < 10) {
-          while (performance.now() < timestampMs) {}
-          break;
-        }
-      }
-      return timestampMs + pause;
-    },
-
     async sendQueuedToECU() {
       if (!this.waitReply && this.queuedBytes.length) {
         let byte = this.queuedBytes.shift();
@@ -759,6 +728,19 @@ export default {
           return 3;
       }
     },
+
+    async waitUntil(timestampMs, pause) {
+      const start = performance.now();
+      while (performance.now() < timestampMs) {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        let delta = performance.now() - start;
+        if (delta < 10) {
+          while (performance.now() < timestampMs) {}
+          break;
+        }
+      }
+      return timestampMs + pause;
+    },    
     async assertSignalAndWait(before, pause, brk) {
       await this.ser.port.setSignals({ break: brk });
       return await this.waitUntil(before, pause);
@@ -771,7 +753,6 @@ export default {
       this.ser.stage += 0.3;
       for (var i = 0; i < 8; i++) {
         let bit = (ecuAddress >> i) & 1;
-        //this.ser.stage += 0.1;
         before = await this.assertSignalAndWait(before, pause, !bit);
       }
       this.ser.stage += 0.3;
@@ -885,7 +866,6 @@ caca
               this.processCmd(cmd, data);
               len_cmd = 0;
               dataframe = [];
-              this.ser.replys.push(data);
               if (rest.length) {
                 cmd = rest[0];
                 dataframe = rest;
@@ -1265,9 +1245,6 @@ caca
       <pre style="overflow-y: scroll; height: 25vh">{{ debug_log.join("\n") }}</pre>
     </div>
     <div class="col-6">
-      <pre style="overflow-y: scroll; height: 25vh">{{ ser.replys.join("\n") }}</pre>
-    </div>
-    <div class="col-12">
       <pre style="overflow-y: scroll; height: 25vh">{{ ser.replysRaw.join("\n") }}</pre>
     </div>
   </div>
