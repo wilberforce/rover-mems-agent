@@ -654,7 +654,9 @@ export default {
         let writer = this.ser.port.writable.getWriter();
         writer.write(Uint8Array.from(bytes));
         writer.releaseLock();
+      this.waitReply = true
       }
+
     },
     hex(bytes, delim = "") {
       let result = bytes.map((x) => {
@@ -982,7 +984,7 @@ caca
       var fullRomSize2j = endOfDownload2j - downloadNextAddress2j + 1;
       var fullRomData2j = [];
       let len_to_read = 31;
-      this.sendBytes([0x23, (downloadNextAddress2j >> 16) & 0xff, (downloadNextAddress2j >> 8) & 0xff, (downloadNextAddress2j >> 0) & 0xff, len_to_read]);
+      this.sendBytes([0xdc, (downloadNextAddress2j >> 16) & 0xff, (downloadNextAddress2j >> 8) & 0xff, (downloadNextAddress2j >> 0) & 0xff, len_to_read]);
     },
   },
 };
@@ -1159,6 +1161,11 @@ caca
   <hr />
 
   <div>
+    
+    <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x6b])">test RPM gauge 6B</button>
+ 
+
+ 
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80, 0x7d])">Data 80/7D</button>
@@ -1210,14 +1217,15 @@ caca
     </div>
 
     <div class="btn-group mr-2 mr-2" role="group">
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7a])">-</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7a,0x80,0x7d])">-</button>
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
           >Long Term Fuel Trim <span class="ml-1 badge badge-dark">{{ Dataframe.LongTermFuelTrim }}</span></label
         ></span
       >
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b])">+</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b,0x80,0x7d])">+</button>
     </div>
+
 
     <div class="btn-group mt-2" role="group">
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x93])">-</button>
@@ -1247,7 +1255,10 @@ caca
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xdc, 0x00])">set block 00</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x70])">Read Block 0x70</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0x80])">Read Block 0x80</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="readRom()">ReadRom</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xc7])">Rom bank</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xc8])">Ram bank 1</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendBytes([0xc9])">Ram bank 2</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" @click="readRom()">ReadRom</button>
     </div>
   </div>
   <hr />
