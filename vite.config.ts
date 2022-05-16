@@ -19,6 +19,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         //manualChunks: () => "everything.js", // create one js bundle
+        entryFileNames: "[name]-[hash].mjs"
       }      
     },
   },
