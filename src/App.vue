@@ -1056,8 +1056,9 @@ caca
          {{ rpmD2.min }} <br> {{ rpmD2.max }}<br />
         MPH: {{ MPH }} KPH: {{ KPH }} <br />
         Δ {{ deltaDist }}m <br />
+        <h3 class="card-text text-monospace">{{ Acceleration }}</h3>
      -->
-     <h3 class="card-text text-monospace">{{ Acceleration }}</h3>
+     
       </div>
     </div>
 
@@ -1163,8 +1164,11 @@ caca
   <div>
     
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x6b])">test RPM gauge 6B</button>
- 
 
+     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x79])">0x79 + STFT</button>
+      <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7a])">0x79 - STFT</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7b])">0x7b + LTFT</button>
+  <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7c])">0x7b + LTFT</button>
  
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x80])">Data 80</button>
     <button class="btn btn-outline-secondary btn-sm mr-2 mb-2" @click="sendToEcu([0x7d])">Data 7D</button>
@@ -1221,6 +1225,16 @@ caca
       <span type="button" class="btn btn-sm btn-outline-secondary disabled"
         ><label class="mb-0"
           >Long Term Fuel Trim <span class="ml-1 badge badge-dark">{{ Dataframe.LongTermFuelTrim }}</span></label
+        ></span
+      >
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b,0x80,0x7d])">+</button>
+    </div>
+
+        <div class="btn-group mr-2 mr-2" role="group">
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7a,0x80,0x7d])">-</button>
+      <span type="button" class="btn btn-sm btn-outline-secondary disabled"
+        ><label class="mb-0"
+          >Short Term Fuel Trim <span class="ml-1 badge badge-dark">{{ Dataframe.ShortTermFuelTrim }}</span></label
         ></span
       >
       <button type="button" class="btn btn-sm btn-outline-secondary" @click="sendToEcu([0x7b,0x80,0x7d])">+</button>
